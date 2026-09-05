@@ -35,7 +35,33 @@
         let player = null;
         let blocks = [], enemies = [], projectiles = [], items = [], particles = [], texts = [], weatherParticles = [];
         let decors = { layer2: [], layer3: [], layer4: [] };
+        
         let goal = null;
+        
+        // --- MAÑAS DEL CREADOR ---
+        let cheatTaps = 0;
+        let cheatStartTime = 0;
+
+        function checkSecretCheat(x, y) {
+            // Hitbox ajustado específicamente sobre el icono de la moneda
+            if (x >= 80 && x <= 140 && y >= 10 && y <= 50) {
+                let now = performance.now();
+                
+                // Si es el primer toque o si han pasado más de 10 segundos (10000 ms) desde el primer toque
+                if (cheatTaps === 0 || now - cheatStartTime > 10000) {
+                    cheatTaps = 1;
+                    cheatStartTime = now;
+                } else {
+                    cheatTaps++;
+                }
+
+                // Al llegar a 7 toques dentro del margen de 10 segundos, ejecuta el salto de nivel en silencio
+                if (cheatTaps >= 7 && state.current === GAME_STATES.PLAYING) {
+                    cheatTaps = 0;
+                    winLevel(); 
+                }
+            }
+        }
 
         const WC = [
             null, 
@@ -65,7 +91,24 @@
                 if(Math.hypot(tx-vBtns.jump.x, ty-vBtns.jump.y)<vBtns.jump.r+30) { keys.up=true; vBtns.jump.active=true; }
             }
         }
-        canvas.addEventListener('touchstart', (e) => { tryInitGame(); checkTouches(e); }, {passive: false});
+        
+        canvas.addEventListener('touchstart', (e) => { 
+            tryInitGame(); 
+            checkTouches(e); 
+            
+            let rect = canvas.getBoundingClientRect();
+            for(let i=0; i<e.touches.length; i++) {
+                let tx = e.touches[i].clientX - rect.left, ty = e.touches[i].clientY - rect.top;
+                checkSecretCheat(tx, ty);
+            }
+        }, {passive: false});
+
+        canvas.addEventListener('mousedown', (e) => {
+            let rect = canvas.getBoundingClientRect();
+            let mx = e.clientX - rect.left, my = e.clientY - rect.top;
+            checkSecretCheat(mx, my);
+        });
+
         canvas.addEventListener('touchmove', checkTouches, {passive: false});
         canvas.addEventListener('touchend', checkTouches, {passive: false});
         window.addEventListener('keydown', e => { if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=true; if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){keys.up=true; tryInitGame();} });
@@ -501,13 +544,12 @@
             goal = { x: curX - TILE*10, y: state.floorY - TILE*6, w: TILE, h: TILE*6 }; buildParallax();
         }
 
-        // --- MANEJO DE ESTADOS CORREGIDO ---
         function die() {
             if(state.current === GAME_STATES.DEAD || state.current === GAME_STATES.GAMEOVER) return;
             AudioEngine.die(); player.vy = PHYS.JUMP_FORCE; state.lives--;
             state.current = state.lives <= 0 ? GAME_STATES.GAMEOVER : GAME_STATES.DEAD;
             setTimeout(() => { 
-                if(state.lives > 0) resetGame('death'); // Pasamos 'death' para que NO reseteé el mundo.
+                if(state.lives > 0) resetGame('death');
             }, 3000);
         }
 
@@ -531,7 +573,6 @@
             } else if (reason === 'next') {
                 state.world++; keepState = true;
             } 
-            // Si es 'death', ignoramos los ifs, se mantiene el mundo y el score.
             
             AudioEngine.activeMelodyIndex = Math.floor(Math.random() * 8);
             generateLevel(keepState);
@@ -579,7 +620,6 @@
             if (AudioEngine.active) AudioEngine.schedule();
             if (state.current === GAME_STATES.MENU || state.current === GAME_STATES.GAMEOVER) { drawFullScreenUI(); return; }
 
-            // --- LÓGICA DE FUEGOS ARTIFICIALES (FINAL) ---
             if (state.current === GAME_STATES.ENDING) {
                 state.menuTimer += dt;
                 if(Math.random() < 0.05) {
