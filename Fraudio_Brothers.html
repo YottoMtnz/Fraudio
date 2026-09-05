@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Fraudio Brothers - SNES Edition</title>
+    <style>
+        * {
+            box-sizing: border-box; margin: 0; padding: 0;
+            -webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none;
+            -moz-user-select: none; -ms-user-select: none; user-select: none; touch-action: none; 
+            outline: none; -webkit-tap-highlight-color: transparent;
+        }
+        html, body {
+            width: 100%; height: 100%; overflow: hidden; background-color: #000; position: fixed;
+            font-family: 'Impact', 'Arial Black', sans-serif;
+        }
+        #gameCanvas { display: block; width: 100%; height: 100%; image-rendering: optimizeSpeed; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        let cw, ch;
+        function resize() { cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch; }
+        window.addEventListener('resize', resize); resize();
+
+        const TILE = 45; const LEVEL_LENGTH = 300; 
+        const PHYS = { GRAVITY: 2400, MAX_FALL: 950, ACCEL: 3000, FRICTION: 0.00001, MAX_SPEED: 350, MAX_SPEED_SAT: 500, JUMP_FORCE: -850, BOUNCE_FORCE: -600 };
+        const GAME_STATES = { MENU: 0, PLAYING: 1, DEAD: 2, WIN: 3, GAMEOVER: 4 };
+        
+        let state = { current: GAME_STATES.MENU, lives: 3, score: 0, world: 1, camX: 0, floorY: 0, lastTime: performance.now(), menuTimer: 0 };
+        let player = null;
+        let blocks = [], enemies = [], projectiles = [], items = [], particles = [], texts = [], weatherParticles = [];
+        let decors = { layer2: [], layer3: [], layer4: [] };
+        let goal = null;
+
+        // --- 8 WORLDS PALETTES ---
+        const WC = [
+            null, 
+            { sT:'#3498db', sB:'#ecf0f1', m:'#34495e', h:'#27ae60', b:'#2ecc71', gT:'#2ecc71', gM:'#8e44ad', gB:'#5b2c6f', eM:'#d35400', eR:'#27ae60' }, // 1 Forest
+            { sT:'#e67e22', sB:'#f39c12', m:'#c0392b', h:'#d35400', b:'#e67e22', gT:'#f1c40f', gM:'#d35400', gB:'#a04000', eM:'#f1c40f', eR:'#2ecc71' }, // 2 Desert
+            { sT:'#2c3e50', sB:'#34495e', m:'#ecf0f1', h:'#bdc3c7', b:'#ecf0f1', gT:'#ffffff', gM:'#3498db', gB:'#21618c', eM:'#3498db', eR:'#ecf0f1' }, // 3 Ice
+            { sT:'#5b2c6f', sB:'#000000', m:'#7f8c8d', h:'#c0392b', b:'#e74c3c', gT:'#e74c3c', gM:'#2c3e50', gB:'#17202a', eM:'#8e44ad', eR:'#c0392b' }, // 4 Lava
+            { sT:'#00FFFF', sB:'#E0FFFF', m:'#F5DEB3', h:'#D2B48C', b:'#FF69B4', gT:'#F5DEB3', gM:'#00CED1', gB:'#008B8B', eM:'#FF69B4', eR:'#00BFFF' }, // 5 Beach
+            { sT:'#4B0082', sB:'#000000', m:'#2F4F4F', h:'#483D8B', b:'#800080', gT:'#8B008B', gM:'#4B0082', gB:'#000000', eM:'#ADFF2F', eR:'#9400D3' }, // 6 Grave
+            { sT:'#87CEEB', sB:'#FFFFFF', m:'#E0FFFF', h:'#ADD8E6', b:'#B0E0E6', gT:'#FFFFFF', gM:'#87CEFA', gB:'#4682B4', eM:'#FFB6C1', eR:'#FFD700' }, // 7 Sky
+            { sT:'#000000', sB:'#001100', m:'#003300', h:'#00FF00', b:'#32CD32', gT:'#00FF00', gM:'#006400', gB:'#000000', eM:'#FF00FF', eR:'#00FFFF' }  // 8 Cyber
+        ];
+
+        const keys = { left: false, right: false, up: false };
+        const vBtns = { left: { x: 60, y: ch-70, r: 40, active: false }, right: { x: 160, y: ch-70, r: 40, active: false }, jump: { x: cw-70, y: ch-70, r: 45, active: false } };
+        function updateBtnPositions() { vBtns.left.y=ch-70; vBtns.right.y=ch-70; vBtns.jump.y=ch-70; vBtns.jump.x=cw-70; }
+        window.addEventListener('resize', updateBtnPositions);
+
+        function checkTouches(e) {
+            e.preventDefault(); let rect = canvas.getBoundingClientRect();
+            keys.left = false; keys.right = false; keys.up = false;
+            vBtns.left.active = false; vBtns.right.active = false; vBtns.jump.active = false;
+            for(let i=0; i<e.touches.length; i++) {
+                let tx = e.touches[i].clientX - rect.left, ty = e.touches[i].clientY - rect.top;
+                if(Math.hypot(tx-vBtns.left.x, ty-vBtns.left.y)<vBtns.left.r+30) { keys.left=true; vBtns.left.active=true; }
+                if(Math.hypot(tx-vBtns.right.x, ty-vBtns.right.y)<vBtns.right.r+30) { keys.right=true; vBtns.right.active=true; }
+                if(Math.hypot(tx-vBtns.jump.x, ty-vBtns.jump.y)<vBtns.jump.r+30) { keys.up=true; vBtns.jump.active=true; }
+            }
+        }
+        canvas.addEventListener('touchstart', (e) => { tryInitGame(); checkTouches(e); }, {passive: false});
+        canvas.addEventListener('touchmove', checkTouches, {passive: false});
+        canvas.addEventListener('touchend', checkTouches, {passive: false});
+        window.addEventListener('keydown', e => { if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=true; if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){keys.up=true; tryInitGame();} });
+        window.addEventListener('keyup', e => { if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=false; if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space') keys.up=false; });
+
+        function tryInitGame() { AudioEngine.init(); if(state.current === GAME_STATES.MENU || state.current === GAME_STATES.GAMEOVER) resetGame(false); }
+
+        const F = { C4:261.6, D4:293.7, E4:329.6, F4:349.2, G4:392.0, A4:440.0, B4:493.9, C5:523.3, D5:587.3, E5:659.3, F5:698.5, G5:784.0, A5:880.0, B5:987.8, C6:1046.5, D6:1174.6 };
+        const AudioEngine = {
+            ctx: null, masterGain: null, active: false, nextNoteTime: 0, currentNoteIndex: 0, activeMelodyIndex: 0,
+            melodies: [
+                // 1. Bosque (Clásico, alegre y relajado)
+                [{n: F.C5, d: 0.25}, {n: F.G4, d: 0.25}, {n: F.E4, d: 0.5}, {n: F.A4, d: 0.25}, {n: F.B4, d: 0.25}, {n: F.A4, d: 0.5}],
+                // 2. Desierto (Ritmo sincopado)
+                [{n: F.D5, d: 0.125}, {n: F.E5, d: 0.125}, {n: F.D5, d: 0.25}, {n: F.A4, d: 0.5}, {n: F.F4, d: 0.25}, {n: F.D4, d: 0.25}, {n: F.A4, d: 0.5}],
+                // 3. Hielo (Bonito y melodioso)
+                [{n: F.G5, d: 0.125}, {n: F.E5, d: 0.125}, {n: F.C5, d: 0.25}, {n: F.G4, d: 0.5}, {n: F.A4, d: 0.25}, {n: F.B4, d: 0.25}, {n: F.C5, d: 0.5}],
+                // 4. Lava (Tenso pero no estresante, pausado)
+                [{n: F.E4, d: 0.25}, {n: F.G4, d: 0.25}, {n: F.B4, d: 0.5}, {n: F.A4, d: 0.25}, {n: F.F4, d: 0.25}, {n: F.D4, d: 0.5}],
+                // 5. Playa (Vals muy relajante)
+                [{n: F.E5, d: 0.5}, {n: F.C5, d: 0.25}, {n: F.G4, d: 0.25}, {n: F.F4, d: 0.25}, {n: F.A4, d: 0.25}, {n: F.D5, d: 0.5}],
+                // 6. Cementerio (Misterioso, escala grave y lenta)
+                [{n: F.C4, d: 0.25}, {n: F.A4, d: 0.25}, {n: F.F4, d: 0.25}, {n: F.C5, d: 0.25}, {n: F.B4, d: 0.5}, {n: F.G4, d: 0.5}],
+                // 7. Cielo (Suave, notas altas)
+                [{n: F.C6, d: 0.25}, {n: F.G5, d: 0.25}, {n: F.E5, d: 0.25}, {n: F.C5, d: 0.25}, {n: F.D5, d: 0.5}, {n: F.G5, d: 0.5}],
+                // 8. Ciber (Épico pero melódico)
+                [{n: F.F5, d: 0.125}, {n: F.A5, d: 0.125}, {n: F.C6, d: 0.25}, {n: F.A5, d: 0.25}, {n: F.F5, d: 0.25}, {n: F.E5, d: 0.125}, {n: F.G5, d: 0.125}, {n: F.C6, d: 0.5}]
+            ],
+            // Melodía tipo "Estrella de Mario" para el satélite
+            satMelody: [ 
+                {n: F.E5, d: 0.125}, {n: F.E5, d: 0.25}, {n: F.E5, d: 0.25}, {n: F.C5, d: 0.125}, {n: F.E5, d: 0.25}, {n: F.G5, d: 0.5}
+            ],
+            init() {
+                if(this.active) return;
+                try {
+                    const AC = window.AudioContext || window.webkitAudioContext; this.ctx = new AC();
+                    this.masterGain = this.ctx.createGain(); this.masterGain.gain.value = 0.15;
+                    this.masterGain.connect(this.ctx.destination);
+                    if(this.ctx.state === 'suspended') this.ctx.resume();
+                    this.active = true; this.nextNoteTime = this.ctx.currentTime + 0.1;
+                } catch(e) {}
+            },
+            schedule() {
+                if (!this.active || state.current !== GAME_STATES.PLAYING) return;
+                while(this.nextNoteTime < this.ctx.currentTime + 0.1) {
+                    let isSat = player && player.satelliteTimer > 0;
+                    let arr = isSat ? this.satMelody : this.melodies[this.activeMelodyIndex];
+                    let tempo = isSat ? 160 : 130;
+                    let note = arr[this.currentNoteIndex % arr.length];
+                    let dur = (60 / tempo) * note.d * 4;
+                    this.playNote(note.n, this.nextNoteTime, dur, isSat ? 'sawtooth' : 'square');
+                    this.nextNoteTime += dur; this.currentNoteIndex++;
+                }
+            },
+            playNote(freq, time, dur, type) {
+                let osc = this.ctx.createOscillator(); let gain = this.ctx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, time); osc.connect(gain); gain.connect(this.masterGain);
+                gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.15, time+0.05); gain.gain.exponentialRampToValueAtTime(0.001, time+dur);
+                osc.start(time); osc.stop(time+dur);
+            },
+            playSFX(f, type, dur, v, slide=null) {
+                if(!this.active) return;
+                try {
+                    let o = this.ctx.createOscillator(); let g = this.ctx.createGain();
+                    o.type = type; o.connect(g); g.connect(this.masterGain);
+                    o.frequency.setValueAtTime(f, this.ctx.currentTime);
+                    if(slide) o.frequency.exponentialRampToValueAtTime(slide, this.ctx.currentTime + dur);
+                    g.gain.setValueAtTime(v, this.ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + dur);
+                    o.start(); o.stop(this.ctx.currentTime + dur);
+                } catch(e) {}
+            },
+            jump() { this.playSFX(300, 'square', 0.2, 0.15, 600); },
+            bump() { this.playSFX(150, 'triangle', 0.1, 0.3, 50); },
+            break() { this.playSFX(200, 'square', 0.1, 0.3, 50); setTimeout(()=>this.playSFX(100, 'sawtooth', 0.1, 0.3, 20), 50); },
+            coin() { this.playSFX(F.B5, 'sine', 0.1, 0.2); setTimeout(()=>this.playSFX(F.E5*2, 'sine', 0.3, 0.2), 80); },
+            powerupAppears() { this.playSFX(400, 'square', 0.3, 0.1, 800); },
+            grow() { let fs=[F.C4,F.E4,F.G4,F.C5,F.E5,F.G5]; fs.forEach((f, i) => setTimeout(()=>this.playSFX(f, 'square', 0.1, 0.15), i*50)); },
+            shrink() { let fs=[F.G5,F.E5,F.C5,F.G4,F.E4,F.C4]; fs.forEach((f, i) => setTimeout(()=>this.playSFX(f, 'sawtooth', 0.1, 0.15), i*50)); },
+            stomp() { this.playSFX(400, 'square', 0.15, 0.2, 100); },
+            shoot() { this.playSFX(800, 'sawtooth', 0.15, 0.1, 200); },
+            die() { let fs=[F.B4,F.F4,F.D4,F.B3]; fs.forEach((f, i) => setTimeout(()=>this.playSFX(f, 'sawtooth', 0.3, 0.2), i*150)); }
+        };
+
+        function AABB(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+        function spawnText(txt, x, y, col, size=24) { texts.push(new TextEffect(txt, x, y, col, size)); }
+        function spawnExplosion(x, y, col, count) { for(let i=0; i<count; i++) particles.push(new Particle(x, y, col)); }
+
+        class Player {
+            constructor(x, y) {
+                this.x = x; this.y = y; this.baseW = 28; this.baseH = 40; this.bigW = 34; this.bigH = 60;
+                this.w = this.baseW; this.h = this.baseH; this.vx = 0; this.vy = 0;
+                this.onGround = false; this.facing = 1; this.form = 'small'; this.invulnTimer = 0; this.satelliteTimer = 0; this.animTimer = 0;
+            }
+            update(dt) {
+                if(state.current === GAME_STATES.DEAD) { this.vy += PHYS.GRAVITY * dt; this.y += this.vy * dt; return; }
+                if(this.invulnTimer > 0) this.invulnTimer -= dt;
+                if(this.satelliteTimer > 0) {
+                    this.satelliteTimer -= dt;
+                    if(this.satelliteTimer <= 0) spawnText("FIN SATELITE", this.x, this.y-20, '#fff');
+                    else if(Math.random() < 0.4) spawnExplosion(this.x+Math.random()*this.w, this.y+Math.random()*this.h, `hsl(${Math.random()*360},100%,50%)`, 1);
+                }
+                let maxSpd = this.satelliteTimer > 0 ? PHYS.MAX_SPEED_SAT : PHYS.MAX_SPEED;
+                
+                if(keys.left) { this.vx -= PHYS.ACCEL * dt; this.facing = -1; }
+                if(keys.right) { this.vx += PHYS.ACCEL * dt; this.facing = 1; }
+                if(!keys.left && !keys.right) this.vx *= Math.pow(PHYS.FRICTION, dt);
+                
+                if(this.vx > maxSpd) this.vx = maxSpd; if(this.vx < -maxSpd) this.vx = -maxSpd;
+                if(Math.abs(this.vx) < 5) this.vx = 0;
+
+                this.x += this.vx * dt;
+                for(let b of blocks) {
+                    if(AABB(this, b)) {
+                        if(this.vx > 0) this.x = b.x - this.w; else if (this.vx < 0) this.x = b.x + b.w;
+                        this.vx = 0;
+                    }
+                }
+                this.vy += PHYS.GRAVITY * dt;
+                if(this.vy > PHYS.MAX_FALL) this.vy = PHYS.MAX_FALL;
+
+                if(keys.up && this.onGround) { this.vy = PHYS.JUMP_FORCE; this.onGround = false; AudioEngine.jump(); spawnExplosion(this.x+this.w/2, this.y+this.h, '#fff', 4); }
+
+                this.y += this.vy * dt; this.onGround = false;
+                for(let b of blocks) {
+                    if(AABB(this, b)) {
+                        if(this.vy > 0) { this.y = b.y - this.h; this.onGround = true; this.vy = 0; } 
+                        else if(this.vy < 0) {
+                            this.y = b.y + b.h; this.vy = 0;
+                            if(b.type === 'brick') {
+                                if(this.form !== 'small' || this.satelliteTimer > 0) {
+                                    AudioEngine.break(); state.score += 10; spawnExplosion(b.x+TILE/2, b.y+TILE/2, '#c0392b', 12); blocks.splice(blocks.indexOf(b), 1);
+                                } else { AudioEngine.bump(); b.bump(); }
+                            } else if(b.type === 'question') b.hit();
+                            else { AudioEngine.bump(); b.bump(); }
+                        }
+                    }
+                }
+                if(Math.abs(this.vx) > 10 && this.onGround) this.animTimer += Math.abs(this.vx) * dt * 0.03; else this.animTimer = 0;
+                if(this.y > state.floorY + ch) die();
+            }
+            setSize(newForm) {
+                let bot = this.y + this.h; this.form = newForm;
+                if(newForm === 'small') { this.w = this.baseW; this.h = this.baseH; } else { this.w = this.bigW; this.h = this.bigH; }
+                this.y = bot - this.h; 
+            }
+            damage() {
+                if(this.invulnTimer > 0 || this.satelliteTimer > 0) return;
+                if(this.form === 'big') {
+                    this.setSize('small'); this.invulnTimer = 2; AudioEngine.shrink();
+                    spawnText("¡OUCH!", this.x, this.y, '#ff4757'); spawnExplosion(this.x+this.w/2, this.y+this.h/2, '#fff', 15);
+                } else die();
+            }
+            draw(ctx) {
+                if(this.invulnTimer > 0 && Math.floor(Date.now() / 100) % 2 === 0) return;
+                ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h); ctx.scale(this.facing, 1);
+                let scaleVal = (this.form === 'big') ? 1.4 : 1; ctx.scale(scaleVal, scaleVal);
+                let walk = this.onGround ? Math.sin(this.animTimer) : 1; if(state.current === GAME_STATES.DEAD) walk = 0;
+
+                let capCol = '#d63031', overCol = '#0984e3', skinCol = '#ffeaa7', shoeCol = '#5c4033';
+                if(this.satelliteTimer > 0) {
+                    let hue = (Date.now() % 360); capCol = `hsl(${hue}, 100%, 50%)`; overCol = `hsl(${(hue+180)%360}, 100%, 50%)`;
+                    ctx.shadowBlur = 15; ctx.shadowColor = capCol;
+                }
+                let grdShoe = ctx.createRadialGradient(0,-2,1, 0,-2,6); grdShoe.addColorStop(0, '#8B4513'); grdShoe.addColorStop(1, shoeCol);
+                ctx.fillStyle = grdShoe; ctx.beginPath(); ctx.ellipse(-6, -2, 6, 4, walk*0.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(6, -2, 6, 4, -walk*0.5, 0, Math.PI*2); ctx.fill();
+                let grdOver = ctx.createLinearGradient(0,-18,0,-2); grdOver.addColorStop(0, overCol); grdOver.addColorStop(1, '#0652DD');
+                ctx.fillStyle = grdOver; ctx.beginPath(); ctx.roundRect(-10, -18, 20, 16, 4); ctx.fill();
+                ctx.fillStyle = '#fdcb6e'; ctx.beginPath(); ctx.arc(-6, -14, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, -14, 2, 0, Math.PI*2); ctx.fill();
+                let grdShirt = ctx.createLinearGradient(0,-26,0,-14); grdShirt.addColorStop(0, '#ff7675'); grdShirt.addColorStop(1, capCol);
+                ctx.fillStyle = grdShirt; ctx.beginPath(); ctx.roundRect(-11, -26, 22, 12, 5); ctx.fill();
+                ctx.save(); ctx.translate(0, -22); ctx.rotate(-walk * 0.6); ctx.beginPath(); ctx.roundRect(-3, 0, 6, 12, 3); ctx.fill();
+                ctx.fillStyle = skinCol; ctx.beginPath(); ctx.arc(0, 12, 4, 0, Math.PI*2); ctx.fill(); ctx.restore();
+                ctx.fillStyle = skinCol; ctx.beginPath(); ctx.arc(0, -32, 10, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#ffb8b8'; ctx.beginPath(); ctx.arc(8, -31, 4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#2d3436'; ctx.beginPath(); ctx.ellipse(6, -28, 7, 2, -0.1, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.ellipse(4, -34, 2, 3, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = capCol; ctx.beginPath(); ctx.arc(0, -34, 10, Math.PI, 0); ctx.fill();
+                ctx.beginPath(); ctx.roundRect(-10, -36, 22, 4, 2); ctx.fill(); ctx.restore();
+            }
+        }
+
+        class Block {
+            constructor(x, y, type, content=null) { this.x = x; this.y = y; this.w = TILE; this.h = TILE; this.type = type; this.content = content; this.bumpY = 0; }
+            bump() { this.bumpY = -15; }
+            hit() {
+                if(this.type !== 'question') return; this.bump(); this.type = 'empty';
+                if(this.content === 'telephone') { items.push(new Item(this.x+8, this.y, 'telephone')); AudioEngine.powerupAppears(); }
+                else { items.push(new Item(this.x+10, this.y, 'coin')); AudioEngine.coin(); state.score += 100; }
+            }
+            update(dt) { if(this.bumpY < 0) { this.bumpY += 100 * dt; if(this.bumpY > 0) this.bumpY = 0; } }
+            draw(ctx) {
+                ctx.save(); ctx.translate(this.x, this.y + this.bumpY);
+                if(this.type === 'ground') {
+                    let wC = WC[state.world];
+                    let grd = ctx.createLinearGradient(0,0,0,this.h); grd.addColorStop(0, wC.gM); grd.addColorStop(1, wC.gB);
+                    ctx.fillStyle = grd; ctx.fillRect(0, 0, this.w, this.h);
+                    ctx.fillStyle = wC.gT; ctx.fillRect(0, 0, this.w, 8);
+                } else if(this.type === 'brick') {
+                    ctx.fillStyle = '#c0392b'; ctx.fillRect(0, 0, this.w, this.h); ctx.strokeStyle = '#922b21'; ctx.lineWidth = 2; ctx.beginPath();
+                    ctx.moveTo(0, this.h/2); ctx.lineTo(this.w, this.h/2); ctx.moveTo(this.w/2, 0); ctx.lineTo(this.w/2, this.h/2);
+                    ctx.moveTo(this.w/4, this.h/2); ctx.lineTo(this.w/4, this.h); ctx.moveTo(this.w*0.75, this.h/2); ctx.lineTo(this.w*0.75, this.h); ctx.stroke();
+                } else if(this.type === 'question') {
+                    ctx.fillStyle = '#f39c12'; ctx.fillRect(0, 0, this.w, this.h); ctx.fillStyle = '#f1c40f'; ctx.fillRect(2, 2, this.w-4, this.h-4);
+                    let scale = 1 + Math.sin(Date.now()/150) * 0.1;
+                    ctx.fillStyle = '#d35400'; ctx.font = '24px Arial Black'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.translate(this.w/2, this.h/2); ctx.scale(scale, scale); ctx.fillText('?', 0, 2);
+                } else if(this.type === 'empty') {
+                    ctx.fillStyle = '#7f8c8d'; ctx.fillRect(0, 0, this.w, this.h); ctx.fillStyle = '#95a5a6'; ctx.fillRect(2, 2, this.w-4, this.h-4);
+                }
+                ctx.restore();
+            }
+        }
+
+        class Item {
+            constructor(x, y, type) {
+                this.x = x; this.y = y; this.type = type; this.w = 28; this.h = 28;
+                this.vy = -450; this.vx = (Math.random() > 0.5 ? 1 : -1) * 120; this.life = 1; this.collected = false;
+            }
+            update(dt) {
+                if(this.collected) return;
+                if(this.type === 'coin') { this.y += this.vy * dt; this.vy += 900 * dt; this.life -= dt * 2.0; return; }
+                this.vy += PHYS.GRAVITY * dt; this.x += this.vx * dt;
+                for(let b of blocks) {
+                    if(AABB(this, b)) {
+                        if(this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 10) { this.y = b.y - this.h; this.vy = 0; this.vx *= 0.98; } 
+                        else { this.x -= this.vx * dt; this.vx *= -1; }
+                    }
+                }
+                this.y += this.vy * dt;
+                if(AABB(this, player)) {
+                    this.collected = true; this.life = 0;
+                    if(this.type === 'telephone') {
+                        AudioEngine.grow();
+                        if(player.form === 'small') { player.setSize('big'); spawnText("+ GRANDE", this.x, this.y, '#f1c40f'); spawnExplosion(this.x, this.y, '#f1c40f', 20); } 
+                        else { player.setSize('big'); player.satelliteTimer = 15; spawnText("¡FRAUDIO!", player.x, player.y - 50, '#00d2d3', 60); spawnExplosion(player.x, player.y, '#00d2d3', 50); }
+                    }
+                }
+            }
+            draw(ctx) {
+                if(this.life <= 0) return; ctx.save(); ctx.translate(this.x+this.w/2, this.y+this.h/2);
+                if(this.type==='coin') ctx.globalAlpha = Math.max(0, this.life);
+                if(this.type === 'coin') {
+                    ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.ellipse(0,0, 10,14, 0,0,Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#f39c12'; ctx.beginPath(); ctx.ellipse(0,0, 5, 10, 0,0,Math.PI*2); ctx.fill();
+                } else if(this.type === 'telephone') {
+                    ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.roundRect(-12, -2, 24, 14, 4); ctx.fill(); 
+                    ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(0, 5, 6, 0, Math.PI*2); ctx.fill(); 
+                    ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.roundRect(-14, -12, 28, 8, 4); ctx.fill(); 
+                    ctx.fillStyle = '#2c3e50'; ctx.fillRect(-10, -10, 20, 4); 
+                }
+                ctx.restore();
+            }
+        }
+
+        class Enemy {
+            constructor(x, y, isRanged=false) {
+                this.w = 30; this.h = 30; this.x = x; this.y = y - this.h;
+                this.isRanged = isRanged; this.dead = false; this.animTimer = Math.random() * 10; this.vy = 0;
+                if(!isRanged) this.vx = -80 - (state.world * 15); else { this.vx = 0; this.shootTimer = Math.random() * 2 + 1; }
+            }
+            update(dt) {
+                if(this.dead) return;
+                this.vy += PHYS.GRAVITY * dt;
+                if(!this.isRanged) {
+                    this.x += this.vx * dt; let onGround = false;
+                    for(let b of blocks) {
+                        if(AABB(this, b)) {
+                            if(this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 10) { this.y = b.y - this.h; this.vy = 0; onGround = true; } 
+                            else { this.x -= this.vx * dt; this.vx *= -1; }
+                        }
+                    }
+                    if(onGround) {
+                        let edge = false, checkX = this.x + (this.vx > 0 ? this.w + 5 : -5);
+                        for(let b of blocks) { if (checkX >= b.x && checkX <= b.x + b.w && Math.abs((this.y+this.h)-b.y) < 5) edge = true; }
+                        if(!edge) this.vx *= -1;
+                    }
+                } else {
+                    for(let b of blocks) { if(AABB(this, b) && this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 10) { this.y = b.y - this.h; this.vy = 0; } }
+                    this.shootTimer -= dt;
+                    if(this.shootTimer <= 0 && Math.abs(this.x - player.x) < 800 && projectiles.length === 0) { 
+                        this.shootTimer = 2.0;
+                        projectiles.push(new Projectile(this.x, this.y+10, this.x > player.x ? -1 : 1, state.world));
+                        AudioEngine.shoot();
+                    }
+                }
+                this.y += this.vy * dt; this.animTimer += dt * 10;
+                if(state.current === GAME_STATES.PLAYING && AABB(this, player)) {
+                    if(player.satelliteTimer > 0) this.die(true);
+                    else if(player.vy > 0 && player.y + player.h - (player.vy*dt) <= this.y + this.h/2) { this.die(false); player.vy = PHYS.BOUNCE_FORCE; } 
+                    else player.damage();
+                }
+            }
+            die(fromSat) {
+                this.dead = true; AudioEngine.stomp(); state.score += 200;
+                spawnText("200", this.x, this.y, '#fff'); spawnExplosion(this.x+this.w/2, this.y+this.h/2, fromSat ? '#00d2d3' : WC[state.world].eM, 15);
+            }
+            draw(ctx) {
+                if(this.dead) return;
+                ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h);
+                let dir = (player.x < this.x) ? 1 : -1; if(!this.isRanged && this.vx > 0) dir = -1;
+                ctx.scale(dir, 1); ctx.rotate(Math.sin(this.animTimer) * 0.15);
+                
+                let bodyCol = this.isRanged ? WC[state.world].eR : WC[state.world].eM;
+                ctx.fillStyle = bodyCol; ctx.beginPath();
+                if(!this.isRanged) { ctx.moveTo(0, -25); ctx.quadraticCurveTo(-20, -25, -15, -5); ctx.lineTo(15, -5); ctx.quadraticCurveTo(20, -25, 0, -25); ctx.fill(); } 
+                else { ctx.roundRect(-12, -30, 24, 25, 5); ctx.fill(); ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-10, -15, 6, 0, Math.PI*2); ctx.fill(); }
+                
+                ctx.fillStyle = '#2c3e50'; ctx.beginPath(); ctx.ellipse(-8, -2, 6, 4, 0, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(8, -2, 6, 4, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-5, -20, 4, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(5, -20, 4, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(-6, -20, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(4, -20, 2, 0, Math.PI*2); ctx.fill();
+                ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-12, -26); ctx.lineTo(-2, -22); ctx.moveTo(12, -26); ctx.lineTo(2, -22); ctx.stroke();
+                ctx.restore();
+            }
+        }
+
+        class Projectile {
+            constructor(x, y, dir, world) { 
+                this.x = x; this.y = y; this.w = 24; this.h = 24; 
+                let speed = 80 + ((world - 4) * 40);
+                this.vx = dir * speed; 
+                this.life = 8; 
+            }
+            update(dt) {
+                this.x += this.vx * dt; this.life -= dt;
+                if(AABB(this, player)) {
+                    if(player.satelliteTimer > 0) { this.life = 0; spawnExplosion(this.x, this.y, '#fff', 5); } else { player.damage(); this.life = 0; }
+                }
+            }
+            draw(ctx) {
+                if(this.life <= 0) return;
+                let cx = this.x + this.w/2, cy = this.y + this.h/2;
+                ctx.fillStyle = '#FFF'; ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI*2); ctx.fill();
+                ctx.lineWidth = 4; ctx.strokeStyle = '#000'; ctx.stroke();
+                ctx.fillStyle = WC[state.world].eR; ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
+        class Particle {
+            constructor(x, y, col) {
+                this.x=x; this.y=y; this.col=col; let ang=Math.random()*Math.PI*2, spd=Math.random()*300+100;
+                this.vx=Math.cos(ang)*spd; this.vy=Math.sin(ang)*spd - 150; this.life=1; this.size = Math.random()*5+2;
+            }
+            update(dt) { this.vy += PHYS.GRAVITY * dt; this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt * 1.5; }
+            draw(ctx) { if(this.life<=0) return; ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.col; ctx.fillRect(this.x, this.y, this.size, this.size); ctx.globalAlpha = 1; }
+        }
+        class TextEffect {
+            constructor(txt, x, y, col, size=24) { this.txt=txt; this.x=x; this.y=y; this.col=col; this.size=size; this.life = 1; }
+            update(dt) { this.y -= 80*dt; this.life -= dt; }
+            draw(ctx) {
+                if(this.life<=0) return; ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = this.col; ctx.font = `${this.size}px Arial Black`; ctx.strokeStyle = '#000'; ctx.lineWidth=3; ctx.textAlign='center';
+                ctx.strokeText(this.txt, this.x, this.y); ctx.fillText(this.txt, this.x, this.y); ctx.globalAlpha = 1;
+            }
+        }
+        class WeatherParticle {
+            constructor() { this.reset(true); }
+            reset(randY = false) {
+                this.x = state.camX + Math.random() * (cw + 200) - 100; this.y = randY ? Math.random() * ch : -20; this.life = Math.random() * 2 + 1;
+                this.size = Math.random()*4+2; this.col = WC[state.world].wP || '#fff';
+                this.vx = (Math.random()-0.5)*100; this.vy = Math.random()*150 + 20;
+                if(state.world === 2) { this.vx = -Math.random()*300 - 100; this.x = state.camX + cw + 50; }
+                else if(state.world === 4) { this.vy = -Math.random()*150 - 50; this.y = ch + 20; }
+            }
+            update(dt) {
+                this.x += this.vx * dt; this.y += this.vy * dt;
+                if(state.world === 1) { this.x += Math.sin(Date.now()/500 + this.life) * 2; this.life -= dt * 0.5; if(this.life <= 0) this.reset(); } 
+                else if(this.y > ch + 50 || this.y < -50 || this.x < state.camX - 100 || this.x > state.camX + cw + 100) this.reset();
+            }
+            draw(ctx) {
+                ctx.fillStyle = this.col; ctx.globalAlpha = state.world === 1 ? Math.abs(Math.sin(this.life*3)) : 0.7;
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+            }
+        }
+
+        function buildParallax() {
+            decors = { layer2: [], layer3: [], layer4: [] }; const tw = LEVEL_LENGTH * TILE;
+            for(let i=0; i<tw; i+=400) decors.layer2.push({x: i + Math.random()*200, w: 300+Math.random()*200, h: 200+Math.random()*150 });
+            for(let i=0; i<tw; i+=250) decors.layer3.push({x: i + Math.random()*100, r: 100+Math.random()*100 });
+            for(let i=0; i<tw; i+=100) decors.layer4.push({x: i + Math.random()*50, r: 20+Math.random()*40 });
+            weatherParticles = []; for(let i=0; i<60; i++) weatherParticles.push(new WeatherParticle());
+        }
+
+        function drawParallax(camX) {
+            let wC = WC[state.world];
+            let grd = ctx.createLinearGradient(0,0,0,ch); grd.addColorStop(0, wC.sT); grd.addColorStop(1, wC.sB);
+            ctx.fillStyle = grd; ctx.fillRect(0,0,cw,ch);
+            
+            let celX = cw*0.8 - camX*0.02;
+            if(state.world===1||state.world===2||state.world===5) { ctx.fillStyle='#f1c40f'; ctx.beginPath(); ctx.arc(celX, ch*0.2, 50, 0, Math.PI*2); ctx.fill(); }
+            if(state.world===3||state.world===6) { ctx.fillStyle='#ecf0f1'; ctx.beginPath(); ctx.arc(celX, ch*0.2, 40, 0, Math.PI*2); ctx.fill(); ctx.fillStyle=wC.sT; ctx.beginPath(); ctx.arc(celX-10, ch*0.2-10, 35, 0, Math.PI*2); ctx.fill(); }
+
+            ctx.fillStyle = wC.m; for(let d of decors.layer2) { let px = (d.x - camX * 0.1); if(px > -d.w && px < cw) { ctx.beginPath(); ctx.moveTo(px, ch); ctx.lineTo(px+d.w/2, ch-d.h); ctx.lineTo(px+d.w, ch); ctx.fill(); } }
+            ctx.fillStyle = wC.h; for(let d of decors.layer3) { let px = (d.x - camX * 0.3); if(px > -d.r && px < cw+d.r) { ctx.beginPath(); ctx.arc(px, ch, d.r, Math.PI, 0); ctx.fill(); } }
+            ctx.fillStyle = wC.b; for(let d of decors.layer4) { let px = (d.x - camX * 0.6); if(px > -d.r && px < cw+d.r) { ctx.beginPath(); ctx.arc(px, state.floorY+TILE, d.r, Math.PI, 0); ctx.fill(); } }
+        }
+
+        function generateLevel(keepState) {
+            let oldForm = 'small', oldSat = 0; if(keepState && player) { oldForm = player.form; oldSat = player.satelliteTimer; }
+            blocks = []; enemies = []; projectiles = []; items = []; particles = []; texts = []; state.floorY = ch - 120; let curX = 0;
+            
+            for(let i=0; i<15; i++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; }
+            player = new Player(150, state.floorY - 50); player.setSize(oldForm); player.satelliteTimer = oldSat;
+            let phone1 = Math.floor(LEVEL_LENGTH * 0.3), phone2 = Math.floor(LEVEL_LENGTH * 0.7);
+
+            for(let i=15; i<LEVEL_LENGTH; i++) {
+                if(Math.random() < 0.1) {
+                    let gap = Math.floor(Math.random()*2) + 1; curX += TILE * gap; i += gap;
+                    for(let j=0; j<5; j++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; i++; }
+                    continue;
+                }
+                blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground'));
+                if(Math.random() < 0.25) {
+                    let h = Math.floor(Math.random()*2) + 3;
+                    if(Math.random() < 0.3) blocks.push(new Block(curX, state.floorY - TILE*h, 'brick'));
+                    else {
+                        let content = 'coin';
+                        if(Math.abs(i - phone1) < 10) { content = 'telephone'; phone1 = -100; } else if(Math.abs(i - phone2) < 10) { content = 'telephone'; phone2 = -100; }
+                        blocks.push(new Block(curX, state.floorY - TILE*h, 'question', content));
+                    }
+                }
+                if(Math.random() < 0.1 + (state.world*0.015)) {
+                    let isRanged = (state.world >= 4) ? (Math.random() < 0.3) : false;
+                    enemies.push(new Enemy(curX + TILE/2, state.floorY, isRanged));
+                }
+                curX += TILE;
+            }
+            for(let i=0; i<20; i++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; }
+            goal = { x: curX - TILE*10, y: state.floorY - TILE*6, w: TILE, h: TILE*6 }; buildParallax();
+        }
+
+        function die() {
+            if(state.current === GAME_STATES.DEAD || state.current === GAME_STATES.GAMEOVER) return;
+            AudioEngine.die(); player.vy = PHYS.JUMP_FORCE; state.lives--;
+            state.current = state.lives <= 0 ? GAME_STATES.GAMEOVER : GAME_STATES.DEAD;
+            setTimeout(() => { if(state.lives > 0) resetGame(false); }, 3000);
+        }
+
+        function winLevel() {
+            if(state.current === GAME_STATES.WIN) return;
+            state.current = GAME_STATES.WIN; state.score += 1000 * state.world;
+            [F.C5, F.E5, F.G5, F.C6, F.C6].forEach((f,i)=>setTimeout(()=>AudioEngine.playSFX(f, 'square', 0.15, 0.2), i*120));
+            setTimeout(() => { resetGame(true); }, 3000);
+        }
+
+        function resetGame(nextWorld=false) {
+            if(nextWorld) { state.world++; if(state.world>8) state.world=1; } else if(state.lives <= 0) { state.lives=3; state.score=0; state.world=1; player = null; }
+            AudioEngine.activeMelodyIndex = Math.floor(Math.random() * 8);
+            generateLevel(nextWorld);
+            state.camX = player.x - cw/3; state.current = GAME_STATES.PLAYING; state.lastTime = performance.now();
+            AudioEngine.currentNoteIndex = 0; keys.left = false; keys.right = false; keys.up = false;
+        }
+
+        function drawUI() {
+            ctx.fillStyle = '#fff'; ctx.font = '24px Impact'; ctx.textAlign = 'left';
+            ctx.shadowColor = '#000'; ctx.shadowBlur = 4; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
+            ctx.fillText(`❤️ ${state.lives}   🪙 ${state.score}`, 30, 40); ctx.textAlign = 'right'; ctx.fillText(`MUNDO ${state.world}`, cw-30, 40);
+            ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+
+            if (cw < 1024) { 
+                ctx.lineWidth = 4;
+                Object.values(vBtns).forEach(b => {
+                    ctx.fillStyle = b.active ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.2)'; ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+                    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+                });
+                ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '30px Arial';
+                ctx.fillText('◄', vBtns.left.x, vBtns.left.y); ctx.fillText('►', vBtns.right.x, vBtns.right.y); ctx.fillText('▲', vBtns.jump.x, vBtns.jump.y);
+            }
+        }
+
+        function drawFullScreenUI() {
+            ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
+            state.menuTimer += 0.05; let bounce = Math.sin(state.menuTimer) * 10;
+            ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
+            
+            if(state.current === GAME_STATES.MENU) {
+                ctx.fillStyle = '#ff4757'; ctx.fillText("FRAUDIO", cw/2, ch/3 + bounce); ctx.fillStyle = '#f1c40f'; ctx.fillText("BROTHERS", cw/2, ch/3 + 80 + bounce);
+                if(Math.floor(state.menuTimer) % 2 === 0) { ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; ctx.fillText("TOCA LA PANTALLA PARA EMPEZAR", cw/2, ch*0.7); }
+            } else if (state.current === GAME_STATES.GAMEOVER) {
+                ctx.fillStyle = '#ff4757'; ctx.fillText("GAME OVER", cw/2, ch/2 + bounce);
+                if(Math.floor(state.menuTimer) % 2 === 0) { ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; ctx.fillText("TOCA PARA REINTENTAR", cw/2, ch*0.7); }
+            } else if (state.current === GAME_STATES.WIN) {
+                drawParallax(state.camX); ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,cw,ch);
+                ctx.fillStyle = '#2ecc71'; ctx.fillText("¡NIVEL", cw/2, ch/3 + bounce); ctx.fillText("COMPLETADO!", cw/2, ch/3 + 80 + bounce);
+            }
+        }
+
+        function gameLoop(time) {
+            requestAnimationFrame(gameLoop);
+            let dt = (time - state.lastTime) / 1000; if (dt > 0.1) dt = 0.1; state.lastTime = time;
+            if (AudioEngine.active) AudioEngine.schedule();
+            if (state.current === GAME_STATES.MENU || state.current === GAME_STATES.GAMEOVER) { drawFullScreenUI(); return; }
+
+            if(state.current !== GAME_STATES.WIN) player.update(dt);
+            blocks.forEach(b => b.update(dt)); weatherParticles.forEach(p => p.update(dt));
+            for(let i=items.length-1; i>=0; i--) { items[i].update(dt); if(items[i].life<=0) items.splice(i,1); }
+            for(let i=projectiles.length-1; i>=0; i--) { projectiles[i].update(dt); if(projectiles[i].life<=0) projectiles.splice(i,1); }
+            for(let i=enemies.length-1; i>=0; i--) { enemies[i].update(dt); if(enemies[i].dead && Math.random()<0.05) enemies.splice(i,1); }
+            for(let i=particles.length-1; i>=0; i--) { particles[i].update(dt); if(particles[i].life<=0) particles.splice(i,1); }
+            for(let i=texts.length-1; i>=0; i--) { texts[i].update(dt); if(texts[i].life<=0) texts.splice(i,1); }
+
+            if(state.current === GAME_STATES.PLAYING && player.x > goal.x) winLevel();
+            let targetX = player.x - cw * 0.4; if(targetX < 0) targetX = 0; state.camX += (targetX - state.camX) * (1 - Math.pow(0.001, dt));
+
+            ctx.clearRect(0,0,cw,ch); drawParallax(state.camX); weatherParticles.forEach(p => p.draw(ctx));
+            ctx.save(); ctx.translate(-Math.floor(state.camX), 0); const viewL = state.camX - 100, viewR = state.camX + cw + 100;
+
+            ctx.fillStyle='#bdc3c7'; ctx.fillRect(goal.x+TILE/2-4, goal.y, 8, goal.h); ctx.fillStyle='#f1c40f'; ctx.beginPath(); ctx.arc(goal.x+TILE/2, goal.y, 8, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle='#2ecc71'; ctx.beginPath(); ctx.moveTo(goal.x+TILE/2+4, goal.y+20); ctx.lineTo(goal.x+TILE/2+40, goal.y+35); ctx.lineTo(goal.x+TILE/2+4, goal.y+50); ctx.fill();
+
+            blocks.forEach(b => { if(b.x > viewL && b.x < viewR) b.draw(ctx); }); items.forEach(i => { if(i.x > viewL && i.x < viewR) i.draw(ctx); });
+            enemies.forEach(e => { if(e.x > viewL && e.x < viewR) e.draw(ctx); }); projectiles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); });
+            player.draw(ctx); particles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); }); texts.forEach(t => { if(t.x > viewL && t.x < viewR) t.draw(ctx); });
+            ctx.restore();
+
+            if(state.current === GAME_STATES.PLAYING || state.current === GAME_STATES.DEAD) drawUI();
+            else if (state.current === GAME_STATES.WIN) drawFullScreenUI();
+        }
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
