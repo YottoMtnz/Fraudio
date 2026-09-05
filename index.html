@@ -71,6 +71,12 @@
         canvas.addEventListener('touchend', checkTouches, {passive: false});
         window.addEventListener('keydown', e => { if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=true; if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){keys.up=true; tryInitGame();} });
         window.addEventListener('keyup', e => { if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=false; if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space') keys.up=false; });
+        
+        // --- SOLUCIÓN AL BUG "CAMINA SOLO" (Pérdida de Foco) ---
+        window.addEventListener('blur', () => { 
+            keys.left = false; keys.right = false; keys.up = false; 
+            vBtns.left.active = false; vBtns.right.active = false; vBtns.jump.active = false; 
+        });
 
         function tryInitGame() { AudioEngine.init(); if(state.current === GAME_STATES.MENU || state.current === GAME_STATES.GAMEOVER) resetGame(false); }
 
@@ -78,27 +84,16 @@
         const AudioEngine = {
             ctx: null, masterGain: null, active: false, nextNoteTime: 0, currentNoteIndex: 0, activeMelodyIndex: 0,
             melodies: [
-                // 1. Bosque (Clásico, alegre y relajado)
                 [{n: F.C5, d: 0.25}, {n: F.G4, d: 0.25}, {n: F.E4, d: 0.5}, {n: F.A4, d: 0.25}, {n: F.B4, d: 0.25}, {n: F.A4, d: 0.5}],
-                // 2. Desierto (Ritmo sincopado)
                 [{n: F.D5, d: 0.125}, {n: F.E5, d: 0.125}, {n: F.D5, d: 0.25}, {n: F.A4, d: 0.5}, {n: F.F4, d: 0.25}, {n: F.D4, d: 0.25}, {n: F.A4, d: 0.5}],
-                // 3. Hielo (Bonito y melodioso)
                 [{n: F.G5, d: 0.125}, {n: F.E5, d: 0.125}, {n: F.C5, d: 0.25}, {n: F.G4, d: 0.5}, {n: F.A4, d: 0.25}, {n: F.B4, d: 0.25}, {n: F.C5, d: 0.5}],
-                // 4. Lava (Tenso pero no estresante, pausado)
                 [{n: F.E4, d: 0.25}, {n: F.G4, d: 0.25}, {n: F.B4, d: 0.5}, {n: F.A4, d: 0.25}, {n: F.F4, d: 0.25}, {n: F.D4, d: 0.5}],
-                // 5. Playa (Vals muy relajante)
                 [{n: F.E5, d: 0.5}, {n: F.C5, d: 0.25}, {n: F.G4, d: 0.25}, {n: F.F4, d: 0.25}, {n: F.A4, d: 0.25}, {n: F.D5, d: 0.5}],
-                // 6. Cementerio (Misterioso, escala grave y lenta)
                 [{n: F.C4, d: 0.25}, {n: F.A4, d: 0.25}, {n: F.F4, d: 0.25}, {n: F.C5, d: 0.25}, {n: F.B4, d: 0.5}, {n: F.G4, d: 0.5}],
-                // 7. Cielo (Suave, notas altas)
                 [{n: F.C6, d: 0.25}, {n: F.G5, d: 0.25}, {n: F.E5, d: 0.25}, {n: F.C5, d: 0.25}, {n: F.D5, d: 0.5}, {n: F.G5, d: 0.5}],
-                // 8. Ciber (Épico pero melódico)
                 [{n: F.F5, d: 0.125}, {n: F.A5, d: 0.125}, {n: F.C6, d: 0.25}, {n: F.A5, d: 0.25}, {n: F.F5, d: 0.25}, {n: F.E5, d: 0.125}, {n: F.G5, d: 0.125}, {n: F.C6, d: 0.5}]
             ],
-            // Melodía tipo "Estrella de Mario" para el satélite
-            satMelody: [ 
-                {n: F.E5, d: 0.125}, {n: F.E5, d: 0.25}, {n: F.E5, d: 0.25}, {n: F.C5, d: 0.125}, {n: F.E5, d: 0.25}, {n: F.G5, d: 0.5}
-            ],
+            satMelody: [ {n: F.E5, d: 0.125}, {n: F.E5, d: 0.25}, {n: F.E5, d: 0.25}, {n: F.C5, d: 0.125}, {n: F.E5, d: 0.25}, {n: F.G5, d: 0.5} ],
             init() {
                 if(this.active) return;
                 try {
@@ -329,22 +324,50 @@
             }
             update(dt) {
                 if(this.dead) return;
-                this.vy += PHYS.GRAVITY * dt;
+                
+                // --- SOLUCIÓN BUG COLISIÓN/GRAVEDAD ENEMIGOS ---
                 if(!this.isRanged) {
-                    this.x += this.vx * dt; let onGround = false;
+                    // 1. Movimiento X y Colisiones
+                    this.x += this.vx * dt; 
                     for(let b of blocks) {
                         if(AABB(this, b)) {
-                            if(this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 10) { this.y = b.y - this.h; this.vy = 0; onGround = true; } 
-                            else { this.x -= this.vx * dt; this.vx *= -1; }
+                            this.x -= this.vx * dt; 
+                            this.vx *= -1; 
+                            break;
                         }
                     }
+                    
+                    // 2. Gravedad y Colisiones en Y
+                    this.vy += PHYS.GRAVITY * dt;
+                    this.y += this.vy * dt;
+                    let onGround = false;
+                    for(let b of blocks) {
+                        if(AABB(this, b)) {
+                            if(this.vy > 0) { 
+                                this.y = b.y - this.h; 
+                                this.vy = 0; 
+                                onGround = true; 
+                            } else if (this.vy < 0) {
+                                this.y = b.y + b.h; 
+                                this.vy = 0; 
+                            }
+                        }
+                    }
+                    
+                    // 3. Chequeo de bordes
                     if(onGround) {
                         let edge = false, checkX = this.x + (this.vx > 0 ? this.w + 5 : -5);
-                        for(let b of blocks) { if (checkX >= b.x && checkX <= b.x + b.w && Math.abs((this.y+this.h)-b.y) < 5) edge = true; }
+                        for(let b of blocks) { if (checkX >= b.x && checkX <= b.x + b.w && Math.abs((this.y+this.h)-b.y) < 5) { edge = true; break; } }
                         if(!edge) this.vx *= -1;
                     }
                 } else {
-                    for(let b of blocks) { if(AABB(this, b) && this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 10) { this.y = b.y - this.h; this.vy = 0; } }
+                    // Lógica para enemigos que disparan (Gravedad aplicada correctamente)
+                    this.vy += PHYS.GRAVITY * dt;
+                    this.y += this.vy * dt;
+                    for(let b of blocks) { 
+                        if(AABB(this, b) && this.vy > 0) { this.y = b.y - this.h; this.vy = 0; } 
+                    }
+                    
                     this.shootTimer -= dt;
                     if(this.shootTimer <= 0 && Math.abs(this.x - player.x) < 800 && projectiles.length === 0) { 
                         this.shootTimer = 2.0;
@@ -352,7 +375,9 @@
                         AudioEngine.shoot();
                     }
                 }
-                this.y += this.vy * dt; this.animTimer += dt * 10;
+                
+                this.animTimer += dt * 10;
+                
                 if(state.current === GAME_STATES.PLAYING && AABB(this, player)) {
                     if(player.satelliteTimer > 0) this.die(true);
                     else if(player.vy > 0 && player.y + player.h - (player.vy*dt) <= this.y + this.h/2) { this.die(false); player.vy = PHYS.BOUNCE_FORCE; } 
