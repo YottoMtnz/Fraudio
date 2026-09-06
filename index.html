@@ -515,7 +515,7 @@
             blocks = []; enemies = []; projectiles = []; items = []; particles = []; texts = []; 
             
             // PISO AÚN MÁS ALTO (de 160 a 220)
-            state.floorY = ch - 220; 
+            state.floorY = ch - 180; 
             let curX = 0;
             
             for(let i=0; i<15; i++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; }
