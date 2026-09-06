@@ -1,4 +1,4 @@
-<!-- Código actualizado con cartel dinámico de colisión y sonido -->
+<!-- Código actualizado con cartel Nintendo, antorcha, disparo y dificultad racionalizada -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -25,8 +25,8 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d', { alpha: false });
         let cw, ch;
-        function resize() { cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch; }
-        window.addEventListener('resize', resize); resize();
+        function resize() { cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch; updateBtnPositions(); }
+        window.addEventListener('resize', resize); 
 
         const TILE = 45; const LEVEL_LENGTH = 300; 
         const PHYS = { GRAVITY: 2400, MAX_FALL: 950, ACCEL: 3000, FRICTION: 0.00001, MAX_SPEED: 350, MAX_SPEED_SAT: 500, JUMP_FORCE: -850, BOUNCE_FORCE: -600 };
@@ -34,13 +34,13 @@
         
         let state = { current: GAME_STATES.MENU, lives: 5, score: 0, world: 1, camX: 0, floorY: 0, lastTime: performance.now(), menuTimer: 0, time: 150 };
         let player = null;
-        let blocks = [], enemies = [], projectiles = [], items = [], particles = [], texts = [], weatherParticles = [];
+        let blocks = [], enemies = [], projectiles = [], playerProjectiles = [], items = [], particles = [], texts = [], weatherParticles = [];
         let decors = { layer2: [], layer3: [], layer4: [] };
         
         let goal = null;
         let cheatTaps = 0; let cheatStartTime = 0;
         let hitStopTimer = 0; 
-        let wallHitTimer = 0; // Controla la duración del letrero de la pared izquierda
+        let wallHitTimer = 0; 
 
         function checkSecretCheat(x, y) {
             if (x >= 80 && x <= 140 && y >= 10 && y <= 50) {
@@ -63,25 +63,39 @@
             { sT:'#000000', sB:'#001100', m:'#003300', h:'#00FF00', b:'#32CD32', gT:'#00FF00', gM:'#006400', gB:'#000000', eM:'#FF00FF', eR:'#00FFFF' }
         ];
 
-        const keys = { left: false, right: false, up: false, jumpPressedThisFrame: false };
-        const vBtns = { left: { x: 60, y: ch-70, r: 40, active: false }, right: { x: 160, y: ch-70, r: 40, active: false }, jump: { x: cw-70, y: ch-70, r: 45, active: false } };
-        function updateBtnPositions() { vBtns.left.y=ch-70; vBtns.right.y=ch-70; vBtns.jump.y=ch-70; vBtns.jump.x=cw-70; }
-        window.addEventListener('resize', updateBtnPositions);
+        const keys = { left: false, right: false, up: false, jumpPressedThisFrame: false, shoot: false, shootPressedThisFrame: false };
+        const vBtns = { 
+            left: { x: 60, y: 0, r: 40, active: false }, 
+            right: { x: 160, y: 0, r: 40, active: false }, 
+            jump: { x: 0, y: 0, r: 45, active: false },
+            shoot: { x: 0, y: 0, r: 40, active: false }
+        };
+        
+        function updateBtnPositions() { 
+            vBtns.left.y=ch-70; vBtns.right.y=ch-70; 
+            vBtns.jump.y=ch-70; vBtns.jump.x=cw-70; 
+            vBtns.shoot.y=ch-70; vBtns.shoot.x=cw-165; 
+        }
 
         function checkTouches(e) {
             e.preventDefault(); let rect = canvas.getBoundingClientRect();
-            let prevUp = keys.up;
-            keys.left = false; keys.right = false; keys.up = false;
-            vBtns.left.active = false; vBtns.right.active = false; vBtns.jump.active = false;
+            let prevUp = keys.up; let prevShoot = keys.shoot;
+            keys.left = false; keys.right = false; keys.up = false; keys.shoot = false;
+            vBtns.left.active = false; vBtns.right.active = false; vBtns.jump.active = false; vBtns.shoot.active = false;
+            
             for(let i=0; i<e.touches.length; i++) {
                 let tx = e.touches[i].clientX - rect.left, ty = e.touches[i].clientY - rect.top;
                 if(Math.hypot(tx-vBtns.left.x, ty-vBtns.left.y)<vBtns.left.r+30) { keys.left=true; vBtns.left.active=true; }
                 if(Math.hypot(tx-vBtns.right.x, ty-vBtns.right.y)<vBtns.right.r+30) { keys.right=true; vBtns.right.active=true; }
                 if(Math.hypot(tx-vBtns.jump.x, ty-vBtns.jump.y)<vBtns.jump.r+30) { keys.up=true; vBtns.jump.active=true; }
+                if(player && player.hasTorch && Math.hypot(tx-vBtns.shoot.x, ty-vBtns.shoot.y)<vBtns.shoot.r+30) { keys.shoot=true; vBtns.shoot.active=true; }
             }
             if (!prevUp && keys.up) keys.jumpPressedThisFrame = true;
+            if (!prevShoot && keys.shoot) keys.shootPressedThisFrame = true;
         }
         
+        resize(); // Inicializar posiciones botones
+
         canvas.addEventListener('touchstart', (e) => { 
             tryInitGame(); checkTouches(e); 
             let rect = canvas.getBoundingClientRect();
@@ -103,14 +117,22 @@
             if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){
                 if(!keys.up) keys.jumpPressedThisFrame = true;
                 keys.up=true; tryInitGame();
-            } 
+            }
+            if(e.code==='ShiftLeft'||e.code==='KeyX') {
+                if(!keys.shoot) keys.shootPressedThisFrame = true;
+                keys.shoot=true; tryInitGame();
+            }
         });
         window.addEventListener('keyup', e => { 
             if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=false; 
             if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=false; 
             if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space') keys.up=false; 
+            if(e.code==='ShiftLeft'||e.code==='KeyX') keys.shoot=false;
         });
-        window.addEventListener('blur', () => { keys.left = false; keys.right = false; keys.up = false; vBtns.left.active = false; vBtns.right.active = false; vBtns.jump.active = false; });
+        window.addEventListener('blur', () => { 
+            keys.left = false; keys.right = false; keys.up = false; keys.shoot = false; 
+            vBtns.left.active = false; vBtns.right.active = false; vBtns.jump.active = false; vBtns.shoot.active = false; 
+        });
 
         function tryInitGame() { 
             AudioEngine.init(); 
@@ -171,7 +193,7 @@
             },
             jump() { this.playSFX(300, 'sine', 0.2, 0.2, 600); },
             bump() { this.playSFX(150, 'triangle', 0.1, 0.3, 50); },
-            wallHit() { this.playSFX(90, 'sawtooth', 0.25, 0.4, 40); }, // Sonido grave y brusco de choque con pared
+            wallHit() { this.playSFX(90, 'sawtooth', 0.25, 0.4, 40); }, 
             break() { this.playSFX(200, 'square', 0.1, 0.2, 50); setTimeout(()=>this.playSFX(100, 'triangle', 0.1, 0.2, 20), 50); },
             coin() { this.playSFX(F.B5, 'sine', 0.1, 0.2); setTimeout(()=>this.playSFX(F.E5*2, 'sine', 0.3, 0.2), 80); },
             powerupAppears() { this.playSFX(400, 'square', 0.3, 0.1, 800); },
@@ -193,6 +215,7 @@
                 this.onGround = false; this.facing = 1; this.form = 'small'; this.invulnTimer = 0; this.satelliteTimer = 0; this.animTimer = 0;
                 this.coyoteTimer = 0; this.jumpBufferTimer = 0; 
                 this.squashX = 1; this.squashY = 1; 
+                this.hasTorch = false; // Nueva habilidad
             }
             update(dt) {
                 if(state.current === GAME_STATES.DEAD) { this.vy += PHYS.GRAVITY * dt; this.y += this.vy * dt; return; }
@@ -224,11 +247,11 @@
                                 this.x = b.x - this.w;
                             } else if (this.vx < 0) {
                                 this.x = b.x + b.w;
-                                // Detectar colisión con la pared invisible izquierda (la que está en x = -TILE)
+                                // Detectar colisión con la pared invisible izquierda
                                 if (b.x === -TILE) {
                                     if (wallHitTimer <= 0) {
                                         AudioEngine.wallHit();
-                                        wallHitTimer = 1.2; // Muestra el cartel por 1.2 segundos
+                                        wallHitTimer = 1.2; 
                                     }
                                 }
                             }
@@ -240,18 +263,10 @@
                 this.vy += PHYS.GRAVITY * dt;
                 if(this.vy > PHYS.MAX_FALL) this.vy = PHYS.MAX_FALL;
 
-                if (this.onGround) {
-                    this.coyoteTimer = 0.12; 
-                } else {
-                    this.coyoteTimer -= dt;
-                }
+                if (this.onGround) this.coyoteTimer = 0.12; else this.coyoteTimer -= dt;
 
-                if (keys.jumpPressedThisFrame) {
-                    this.jumpBufferTimer = 0.1; 
-                    keys.jumpPressedThisFrame = false;
-                } else {
-                    this.jumpBufferTimer -= dt;
-                }
+                if (keys.jumpPressedThisFrame) { this.jumpBufferTimer = 0.1; keys.jumpPressedThisFrame = false; } 
+                else { this.jumpBufferTimer -= dt; }
 
                 if (this.jumpBufferTimer > 0 && (this.onGround || this.coyoteTimer > 0)) {
                     this.vy = PHYS.JUMP_FORCE; 
@@ -263,26 +278,30 @@
                     this.squashX = 0.7; this.squashY = 1.3; 
                 }
 
+                // Lógica de disparo de bolas de fuego
+                if (this.hasTorch && keys.shootPressedThisFrame) {
+                    keys.shootPressedThisFrame = false;
+                    if (playerProjectiles.length < 3) { // Máximo 3 en pantalla
+                        playerProjectiles.push(new PlayerFireball(this.x + this.w/2, this.y + this.h/2, this.facing));
+                        AudioEngine.shoot(); 
+                    }
+                }
+
                 let wasOnGround = this.onGround;
                 this.y += this.vy * dt; this.onGround = false;
                 for(let b of blocks) {
                     if(AABB(this, b)) {
                         if(this.vy > 0) { 
                             this.y = b.y - this.h; 
-                            if (!wasOnGround) {
-                                this.squashX = 1.3; this.squashY = 0.7; 
-                            }
-                            this.onGround = true; 
-                            this.vy = 0; 
+                            if (!wasOnGround) { this.squashX = 1.3; this.squashY = 0.7; }
+                            this.onGround = true; this.vy = 0; 
                         } 
                         else if(this.vy < 0) {
                             this.y = b.y + b.h; this.vy = 0;
                             if(b.type === 'brick') {
                                 if(this.form !== 'small' || this.satelliteTimer > 0) {
                                     AudioEngine.break(); state.score += 10; 
-                                    for(let k=0; k<4; k++) {
-                                        particles.push(new BrickParticle(b.x + TILE/2, b.y + TILE/2, (k%2===0?1:-1)*(Math.random()*150+50), -Math.random()*300-200));
-                                    }
+                                    for(let k=0; k<4; k++) particles.push(new BrickParticle(b.x + TILE/2, b.y + TILE/2, (k%2===0?1:-1)*(Math.random()*150+50), -Math.random()*300-200));
                                     blocks.splice(blocks.indexOf(b), 1);
                                     hitStopTimer = 0.05; 
                                 } else { AudioEngine.bump(); b.bump(); }
@@ -302,7 +321,7 @@
             damage() {
                 if(this.invulnTimer > 0 || this.satelliteTimer > 0) return;
                 if(this.form === 'big') {
-                    this.setSize('small'); this.invulnTimer = 2; AudioEngine.shrink();
+                    this.setSize('small'); this.invulnTimer = 2; AudioEngine.shrink(); this.hasTorch = false;
                     spawnText("¡OUCH!", this.x, this.y, '#ff4757'); spawnExplosion(this.x+this.w/2, this.y+this.h/2, '#fff', 15);
                 } else die();
             }
@@ -314,14 +333,16 @@
                 let scaleVal = (this.form === 'big') ? 1.4 : 1; ctx.scale(scaleVal, scaleVal);
                 let walk = this.onGround ? Math.sin(this.animTimer) : 1; if(state.current === GAME_STATES.DEAD) walk = 0;
 
-                let capCol = '#d63031', overCol = '#0984e3', skinCol = '#ffeaa7', shoeCol = '#5c4033';
+                let capCol = this.hasTorch ? '#e67e22' : '#d63031'; // Gorra naranja si tiene poder
+                let overCol = this.hasTorch ? '#d35400' : '#0984e3'; // Overol rojo/naranja
+                let skinCol = '#ffeaa7', shoeCol = '#5c4033';
                 if(this.satelliteTimer > 0) {
                     let hue = (Date.now() % 360); capCol = `hsl(${hue}, 100%, 50%)`; overCol = `hsl(${(hue+180)%360}, 100%, 50%)`;
                     ctx.shadowBlur = 15; ctx.shadowColor = capCol;
                 }
                 let grdShoe = ctx.createRadialGradient(0,-2,1, 0,-2,6); grdShoe.addColorStop(0, '#8B4513'); grdShoe.addColorStop(1, shoeCol);
                 ctx.fillStyle = grdShoe; ctx.beginPath(); ctx.ellipse(-6, -2, 6, 4, walk*0.5, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(6, -2, 6, 4, -walk*0.5, 0, Math.PI*2); ctx.fill();
-                let grdOver = ctx.createLinearGradient(0,-18,0,-2); grdOver.addColorStop(0, overCol); grdOver.addColorStop(1, '#0652DD');
+                let grdOver = ctx.createLinearGradient(0,-18,0,-2); grdOver.addColorStop(0, overCol); grdOver.addColorStop(1, this.hasTorch ? '#e74c3c' : '#0652DD');
                 ctx.fillStyle = grdOver; ctx.beginPath(); ctx.roundRect(-10, -18, 20, 16, 4); ctx.fill();
                 ctx.fillStyle = '#fdcb6e'; ctx.beginPath(); ctx.arc(-6, -14, 2, 0, Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(6, -14, 2, 0, Math.PI*2); ctx.fill();
                 let grdShirt = ctx.createLinearGradient(0,-26,0,-14); grdShirt.addColorStop(0, '#ff7675'); grdShirt.addColorStop(1, capCol);
@@ -337,6 +358,36 @@
             }
         }
 
+        class PlayerFireball {
+            constructor(x, y, dir) {
+                this.x = x; this.y = y; this.w = 14; this.h = 14;
+                this.vx = dir * 450; this.vy = 0; this.life = 2; // Dura 2 segundos máximo
+            }
+            update(dt) {
+                this.vy += PHYS.GRAVITY * dt; this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt;
+                for (let b of blocks) {
+                    if (AABB(this, b)) {
+                        if (this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 10) {
+                            this.y = b.y - this.h; this.vy = -350; // Rebote
+                        } else {
+                            this.life = 0; spawnExplosion(this.x, this.y, '#f39c12', 6);
+                        }
+                    }
+                }
+                for (let e of enemies) {
+                    if (!e.dead && AABB(this, e)) {
+                        e.die(true); this.life = 0;
+                        spawnExplosion(this.x, this.y, '#e74c3c', 15);
+                    }
+                }
+            }
+            draw(ctx) {
+                if (this.life <= 0) return;
+                ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.arc(this.x+this.w/2, this.y+this.h/2, 7, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(this.x+this.w/2, this.y+this.h/2, 4, 0, Math.PI*2); ctx.fill();
+            }
+        }
+
         class Block {
             constructor(x, y, type, content=null) { this.x = x; this.y = y; this.w = TILE; this.h = TILE; this.type = type; this.content = content; this.bumpY = 0; }
             bump() { this.bumpY = -15; }
@@ -344,6 +395,7 @@
                 if(this.type !== 'question') return; this.bump(); this.type = 'empty';
                 if(this.content === 'telephone') { items.push(new Item(this.x+8, this.y, 'telephone')); AudioEngine.powerupAppears(); }
                 else if (this.content === 'heart') { items.push(new Item(this.x+8, this.y, 'heart')); AudioEngine.powerupAppears(); }
+                else if (this.content === 'torch') { items.push(new Item(this.x+8, this.y, 'torch')); AudioEngine.powerupAppears(); }
                 else { items.push(new Item(this.x+10, this.y, 'coin')); AudioEngine.coin(); state.score += 100; }
             }
             update(dt) { if(this.bumpY < 0) { this.bumpY += 100 * dt; if(this.bumpY > 0) this.bumpY = 0; } }
@@ -401,6 +453,13 @@
                         AudioEngine.grow();
                         if(player.form === 'small') { player.setSize('big'); spawnText("+ GRANDE", this.x, this.y, '#f1c40f'); spawnExplosion(this.x, this.y, '#f1c40f', 20); } 
                         else { player.setSize('big'); player.satelliteTimer = 15; spawnText("¡FRAUDIO!", player.x, player.y - 50, '#00d2d3', 60); spawnExplosion(player.x, player.y, '#00d2d3', 50); }
+                    } else if (this.type === 'torch') {
+                        if(!player.hasTorch) {
+                            player.hasTorch = true; player.setSize('big'); spawnText("¡FUEGO!", this.x, this.y, '#e74c3c'); spawnExplosion(this.x, this.y, '#e74c3c', 20); AudioEngine.grow();
+                        } else {
+                            state.lives++; spawnText("❤️ +1", this.x, this.y - 20, '#ff4757'); spawnExplosion(this.x, this.y, '#ff4757', 20);
+                            AudioEngine.powerupAppears(); setTimeout(() => AudioEngine.coin(), 100);
+                        }
                     } else if (this.type === 'heart') {
                         state.lives++; spawnText("❤️ +1", this.x, this.y - 20, '#ff4757'); spawnExplosion(this.x, this.y, '#ff4757', 20);
                         AudioEngine.powerupAppears(); setTimeout(() => AudioEngine.coin(), 100);
@@ -418,6 +477,11 @@
                     ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(0, 5, 6, 0, Math.PI*2); ctx.fill(); 
                     ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.roundRect(-14, -12, 28, 8, 4); ctx.fill(); 
                     ctx.fillStyle = '#2c3e50'; ctx.fillRect(-10, -10, 20, 4); 
+                } else if(this.type === 'torch') {
+                    ctx.fillStyle = '#8B4513'; ctx.fillRect(-2, -8, 4, 16);
+                    let fScale = 1 + Math.sin(Date.now()/100)*0.15;
+                    ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(0, -10, 10*fScale, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(0, -10, 5*fScale, 0, Math.PI*2); ctx.fill();
                 } else if(this.type === 'heart') {
                     ctx.fillStyle = '#ff4757'; ctx.beginPath(); ctx.arc(-6, -4, 6, Math.PI, 0); ctx.arc(6, -4, 6, Math.PI, 0); ctx.lineTo(0, 10); ctx.fill();
                 }
@@ -619,8 +683,10 @@
         }
 
         function generateLevel(keepState) {
-            let oldForm = 'small', oldSat = 0; if(keepState && player) { oldForm = player.form; oldSat = player.satelliteTimer; }
-            blocks = []; enemies = []; projectiles = []; items = []; particles = []; texts = []; 
+            let oldForm = 'small', oldSat = 0, oldTorch = false; 
+            if(keepState && player) { oldForm = player.form; oldSat = player.satelliteTimer; oldTorch = player.hasTorch; }
+            
+            blocks = []; enemies = []; projectiles = []; playerProjectiles = []; items = []; particles = []; texts = []; 
             
             state.floorY = ch - 180; 
             let curX = 0;
@@ -630,13 +696,22 @@
             }
             
             for(let i=0; i<15; i++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; }
-            player = new Player(150, state.floorY - 50); player.setSize(oldForm); player.satelliteTimer = oldSat;
+            player = new Player(150, state.floorY - 50); player.setSize(oldForm); player.satelliteTimer = oldSat; player.hasTorch = oldTorch;
             
             let phone1 = Math.floor(LEVEL_LENGTH * 0.3), phone2 = Math.floor(LEVEL_LENGTH * 0.7);
             let heartPos = Math.floor(LEVEL_LENGTH * 0.5); 
+            let torchPos = Math.floor(LEVEL_LENGTH * 0.4); // Ubicación fija de la antorcha por nivel
+
+            // Selección racional de posiciones de enemigos
+            let numEnemies = 2 + (state.world * 2); // Crece gradualmente. Nivel 1 = 4, Nivel 8 = 18.
+            let enemyPositions = new Set();
+            while(enemyPositions.size < numEnemies) {
+                // Aparecen entre el inicio (25) y antes de la meta, dando "zona segura" inicial
+                enemyPositions.add(Math.floor(Math.random() * (LEVEL_LENGTH - 40)) + 25);
+            }
 
             for(let i=15; i<LEVEL_LENGTH; i++) {
-                if(Math.random() < 0.1 && i !== heartPos) {
+                if(Math.random() < 0.1 && i !== heartPos && i !== torchPos) {
                     let gap = Math.floor(Math.random()*2) + 1; curX += TILE * gap; i += gap;
                     for(let j=0; j<5; j++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; i++; }
                     continue;
@@ -646,6 +721,8 @@
                 
                 if (i === heartPos) {
                     blocks.push(new Block(curX, state.floorY - TILE*3, 'question', 'heart'));
+                } else if (i === torchPos) {
+                    blocks.push(new Block(curX, state.floorY - TILE*3, 'question', 'torch'));
                 } else if(Math.random() < 0.25) {
                     let h = Math.floor(Math.random()*2) + 3;
                     if(Math.random() < 0.3) blocks.push(new Block(curX, state.floorY - TILE*h, 'brick'));
@@ -657,7 +734,8 @@
                     }
                 }
                 
-                if(Math.random() < 0.1 + (state.world*0.015)) {
+                // Generar enemigo si la posición coincide con nuestra cuota racional
+                if(enemyPositions.has(i)) {
                     let type = 'walk';
                     let r = Math.random();
                     if (state.world >= 2 && r < 0.3) type = 'fly';
@@ -703,7 +781,8 @@
             AudioEngine.activeMelodyIndex = 0; 
             generateLevel(keepState);
             state.camX = player.x - cw/3; state.current = GAME_STATES.PLAYING; state.lastTime = performance.now();
-            AudioEngine.currentNoteIndex = 0; keys.left = false; keys.right = false; keys.up = false; keys.jumpPressedThisFrame = false;
+            AudioEngine.currentNoteIndex = 0; 
+            keys.left = false; keys.right = false; keys.up = false; keys.jumpPressedThisFrame = false; keys.shoot = false; keys.shootPressedThisFrame = false;
         }
 
         function drawUI() {
@@ -711,7 +790,7 @@
             ctx.shadowColor = '#000'; ctx.shadowBlur = 4; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
             
             ctx.textAlign = 'left'; ctx.fillText(`❤️ ${state.lives}   🪙 ${state.score}`, 30, 40); 
-            ctx.textAlign = 'right'; ctx.fillText(`MUNDO ${state.world}`, cw-30, 40);
+            ctx.textAlign = 'right'; ctx.fillText(`NIVEL ${state.world}`, cw-30, 40);
             
             ctx.textAlign = 'center'; 
             if(state.time <= 30) ctx.fillStyle = '#ff4757'; 
@@ -722,11 +801,18 @@
             if (cw < 1024) { 
                 ctx.lineWidth = 4;
                 Object.values(vBtns).forEach(b => {
-                    ctx.fillStyle = b.active ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.2)'; ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+                    // Solo renderizar el botón de disparo si tiene la antorcha
+                    if(b === vBtns.shoot && (!player || !player.hasTorch)) return; 
+                    
+                    let isShoot = (b === vBtns.shoot);
+                    ctx.fillStyle = b.active ? (isShoot ? 'rgba(255,100,100,0.6)' : 'rgba(255,255,255,0.6)') : (isShoot ? 'rgba(255,100,100,0.2)' : 'rgba(255,255,255,0.2)'); 
+                    ctx.strokeStyle = isShoot ? 'rgba(255,100,100,0.8)' : 'rgba(255,255,255,0.8)';
                     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
                 });
+                
                 ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '30px Arial';
                 ctx.fillText('◄', vBtns.left.x, vBtns.left.y); ctx.fillText('►', vBtns.right.x, vBtns.right.y); ctx.fillText('▲', vBtns.jump.x, vBtns.jump.y);
+                if (player && player.hasTorch) { ctx.font = '24px Arial'; ctx.fillText('🔥', vBtns.shoot.x, vBtns.shoot.y); }
             }
         }
 
@@ -830,6 +916,7 @@
             blocks.forEach(b => b.update(dt)); weatherParticles.forEach(p => p.update(dt));
             for(let i=items.length-1; i>=0; i--) { items[i].update(dt); if(items[i].life<=0) items.splice(i,1); }
             for(let i=projectiles.length-1; i>=0; i--) { projectiles[i].update(dt); if(projectiles[i].life<=0) projectiles.splice(i,1); }
+            for(let i=playerProjectiles.length-1; i>=0; i--) { playerProjectiles[i].update(dt); if(playerProjectiles[i].life<=0) playerProjectiles.splice(i,1); }
             for(let i=enemies.length-1; i>=0; i--) { enemies[i].update(dt); if(enemies[i].dead && Math.random()<0.05) enemies.splice(i,1); }
             for(let i=particles.length-1; i>=0; i--) { particles[i].update(dt); if(particles[i].life<=0) particles.splice(i,1); }
             for(let i=texts.length-1; i>=0; i--) { texts[i].update(dt); if(texts[i].life<=0) texts.splice(i,1); }
@@ -854,30 +941,30 @@
                 ctx.fillStyle='#2ecc71'; ctx.beginPath(); ctx.moveTo(goal.x+TILE/2+4, goal.y+20); ctx.lineTo(goal.x+TILE/2+40, goal.y+35); ctx.lineTo(goal.x+TILE/2+4, goal.y+50); ctx.fill();
                 blocks.forEach(b => { if(b.x > viewL && b.x < viewR) b.draw(ctx); }); items.forEach(i => { if(i.x > viewL && i.x < viewR) i.draw(ctx); });
                 enemies.forEach(e => { if(e.x > viewL && e.x < viewR) e.draw(ctx); }); projectiles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); });
+                playerProjectiles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); });
                 player.draw(ctx); particles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); }); texts.forEach(t => { if(t.x > viewL && t.x < viewR) t.draw(ctx); });
             }
             ctx.restore();
 
-            // Renderizar cartel dinámico fijo en pantalla cuando chocas contra la pared izquierda
+            // Renderizar cartel Nintendo
             if (wallHitTimer > 0 && state.current === GAME_STATES.PLAYING) {
                 ctx.save();
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 18px Impact';
+                ctx.font = 'bold 28px "Arial Black", Impact, sans-serif';
                 let msg = "¡FRAUDIO, ES PARA TU OTRA DERECHA! ➔";
+                let boxX = 30, boxY = ch - 250;
                 
-                // Dibujar en la esquina inferior izquierda fija de la pantalla
-                let boxX = 10, boxY = ch - 300;
-                
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                ctx.fillRect(boxX - 50, boxY - 30, ctx.measureText(msg).width + 30, 50);
-                ctx.strokeStyle = '#f1c40f';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(boxX - 10, boxY - 30, ctx.measureText(msg).width + 30, 50);
+                // Estilo Nintendo
+                ctx.shadowColor = '#000';
+                ctx.shadowBlur = 4;
+                ctx.shadowOffsetX = 3;
+                ctx.shadowOffsetY = 3;
 
-                ctx.fillStyle = '#f1c40f';
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 6;
                 ctx.strokeText(msg, boxX, boxY);
+
+                ctx.fillStyle = '#e60012'; 
                 ctx.fillText(msg, boxX, boxY);
                 ctx.restore();
             }
@@ -907,4 +994,3 @@
     </script>
 </body>
 </html>
-
