@@ -769,9 +769,19 @@
             let grd = ctx.createLinearGradient(0,0,0,ch); grd.addColorStop(0, wC.sT); grd.addColorStop(1, wC.sB);
             ctx.fillStyle = grd; ctx.fillRect(0,0,cw,ch);
             
-            // --- NUEVO: FONDO NEGRO PARA LOS VACÍOS ---
-            // Dibujamos un bloque oscuro debajo del suelo base para que se vea por las aperturas
-            ctx.fillStyle = '#080808'; 
+            // --- NUEVO: FONDO PARA LOS VACÍOS (ABISMO PROFUNDO) ---
+            // Un gradiente que simula un abismo infinito del color del cielo y la atmósfera del mundo
+            let voidGrd = ctx.createLinearGradient(0, state.floorY, 0, ch);
+            voidGrd.addColorStop(0, wC.sB); // Empieza con el color inferior del cielo
+            voidGrd.addColorStop(1, wC.gB); // Termina con el color base (oscuro) del nivel
+            ctx.fillStyle = voidGrd;
+            ctx.fillRect(0, state.floorY, cw, ch - state.floorY);
+            
+            // Capa extra de oscuridad progresiva hacia abajo para dar efecto de profundidad
+            let darkGrd = ctx.createLinearGradient(0, state.floorY, 0, ch);
+            darkGrd.addColorStop(0, 'rgba(0,0,0,0)');
+            darkGrd.addColorStop(1, 'rgba(0,0,0,0.6)');
+            ctx.fillStyle = darkGrd;
             ctx.fillRect(0, state.floorY, cw, ch - state.floorY);
             // ------------------------------------------
 
@@ -986,10 +996,9 @@
                 
                 ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,cw,ch);
                 
-                ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
+                ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/6, 90)}px Impact`;
                 ctx.shadowColor = '#000'; ctx.shadowBlur = 10; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 3;
-                ctx.fillStyle = '#ff4757'; ctx.fillText("FRAUDIO", cw/2, ch/3 + bounce); 
-                ctx.fillStyle = '#f1c40f'; ctx.fillText("BROTHERS", cw/2, ch/3 + 80 + bounce);
+                ctx.fillStyle = '#ff4757'; ctx.fillText("FRAUDIO", cw/2, ch/3 + 40 + bounce); 
                 
                 if(Math.floor(state.menuTimer * 2) % 2 === 0) { 
                     ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; 
