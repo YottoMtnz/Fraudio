@@ -29,7 +29,7 @@
             ch = window.innerHeight; 
             canvas.width = cw; 
             canvas.height = ch; 
-            state.floorY = ch - 180; // Asegura que el piso exista desde el menú
+            state.floorY = ch - 180;
             updateBtnPositions(); 
         }
         window.addEventListener('resize', resize); 
@@ -54,7 +54,6 @@
         let hitStopTimer = 0; 
         let wallHitTimer = 0; 
 
-        // Truco original (Vidas/Win)
         function checkSecretCheat(x, y) {
             if (x >= 80 && x <= 140 && y >= 10 && y <= 50) {
                 let now = performance.now();
@@ -64,7 +63,6 @@
             }
         }
 
-        // Nuevo Easter Egg: Modo Invencible (16 toques al reloj)
         let timerCheatTaps = 0; let timerCheatStartTime = 0;
         function checkTimerCheat(x, y) {
             if (x >= cw/2 - 60 && x <= cw/2 + 60 && y >= 10 && y <= 70) {
@@ -362,7 +360,6 @@
                 }
                 if(Math.abs(this.vx) > 10 && this.onGround) this.animTimer += Math.abs(this.vx) * dt * 0.03; else this.animTimer = 0;
                 
-                // Prevención de muerte por caída en God Mode
                 if(this.y > state.floorY + ch) {
                     if (this.godMode) {
                         this.y = -100;
@@ -451,18 +448,20 @@
             constructor(x, y, type, content=null) { this.x = x; this.y = y; this.w = TILE; this.h = TILE; this.type = type; this.content = content; this.bumpY = 0; }
             bump() { this.bumpY = -15; }
             hit() {
-                if(this.type !== 'question') return; this.bump(); this.type = 'empty';
+                if(this.type !== 'question') return;
+                
                 if(this.content === 'telephone') { items.push(new Item(this.x+8, this.y, 'telephone')); AudioEngine.powerupAppears(); }
                 else if (this.content === 'heart') { items.push(new Item(this.x+8, this.y, 'heart')); AudioEngine.powerupAppears(); }
                 else if (this.content === 'torch') { 
-                    if (player && player.form === 'small') {
-                        items.push(new Item(this.x+8, this.y, 'telephone')); 
-                    } else {
-                        items.push(new Item(this.x+8, this.y, 'torch')); 
-                    }
+                    if (player && player.form === 'small') { items.push(new Item(this.x+8, this.y, 'telephone')); } 
+                    else { items.push(new Item(this.x+8, this.y, 'torch')); }
                     AudioEngine.powerupAppears(); 
                 }
                 else { items.push(new Item(this.x+10, this.y, 'coin')); AudioEngine.coin(); state.score += 100; }
+
+                spawnExplosion(this.x + this.w/2, this.y + this.h/2, '#f39c12', 15);
+                let idx = blocks.indexOf(this);
+                if (idx > -1) blocks.splice(idx, 1);
             }
             update(dt) { if(this.bumpY < 0) { this.bumpY += 100 * dt; if(this.bumpY > 0) this.bumpY = 0; } }
             draw(ctx) {
@@ -493,7 +492,10 @@
                     ctx.fillStyle = '#d35400'; ctx.font = '24px Arial Black'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                     ctx.translate(this.w/2, this.h/2); ctx.scale(scale, scale); ctx.fillText('?', 0, 2);
                 } else if(this.type === 'empty') {
-                    ctx.fillStyle = '#7f8c8d'; ctx.fillRect(0, 0, this.w, this.h); ctx.fillStyle = '#95a5a6'; ctx.fillRect(2, 2, this.w-4, this.h-4);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
+                    ctx.strokeRect(2, 2, this.w - 4, this.h - 4);
+                    ctx.strokeRect(2, 2, this.w - 4, this.h - 4);
                 }
                 ctx.restore();
             }
@@ -511,11 +513,9 @@
                 this.vy += PHYS.GRAVITY * dt;
                 if(this.vy > PHYS.MAX_FALL) this.vy = PHYS.MAX_FALL;
 
-                // X movement
                 this.x += this.vx * dt;
                 for(let b of blocks) {
                     if(AABB(this, b)) {
-                        // Solo rebotamos horizontalmente si vamos hacia abajo o recto para poder salir de los bloques al crearse
                         if (this.vy >= 0) {
                             this.x -= this.vx * dt;
                             this.vx *= -1;
@@ -524,12 +524,10 @@
                     }
                 }
 
-                // Y movement
                 this.y += this.vy * dt;
                 let onGround = false;
                 for(let b of blocks) {
                     if(AABB(this, b)) {
-                        // Solo nos quedamos quietos sobre el bloque si estabamos cayendo sobre él
                         if(this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 25) { 
                             this.y = b.y - this.h; 
                             this.vy = 0; 
@@ -539,7 +537,7 @@
                 }
                 
                 if (onGround) {
-                    this.vx *= 0.98; // fricción
+                    this.vx *= 0.98;
                 }
 
                 if(AABB(this, player)) {
@@ -769,27 +767,22 @@
             let grd = ctx.createLinearGradient(0,0,0,ch); grd.addColorStop(0, wC.sT); grd.addColorStop(1, wC.sB);
             ctx.fillStyle = grd; ctx.fillRect(0,0,cw,ch);
             
-            // --- NUEVO: FONDO PARA LOS VACÍOS (ABISMO PROFUNDO) ---
-            // Un gradiente que simula un abismo infinito del color del cielo y la atmósfera del mundo
             let voidGrd = ctx.createLinearGradient(0, state.floorY, 0, ch);
-            voidGrd.addColorStop(0, wC.sB); // Empieza con el color inferior del cielo
-            voidGrd.addColorStop(1, wC.gB); // Termina con el color base (oscuro) del nivel
+            voidGrd.addColorStop(0, wC.sB); 
+            voidGrd.addColorStop(1, wC.gB); 
             ctx.fillStyle = voidGrd;
             ctx.fillRect(0, state.floorY, cw, ch - state.floorY);
             
-            // Capa extra de oscuridad progresiva hacia abajo para dar efecto de profundidad
             let darkGrd = ctx.createLinearGradient(0, state.floorY, 0, ch);
             darkGrd.addColorStop(0, 'rgba(0,0,0,0)');
             darkGrd.addColorStop(1, 'rgba(0,0,0,0.6)');
             ctx.fillStyle = darkGrd;
             ctx.fillRect(0, state.floorY, cw, ch - state.floorY);
-            // ------------------------------------------
 
             let celX = cw*0.8 - camX*0.02;
             if(state.world===1||state.world===2||state.world===5) { ctx.fillStyle='#f1c40f'; ctx.beginPath(); ctx.arc(celX, ch*0.2, 50, 0, Math.PI*2); ctx.fill(); }
             if(state.world===3||state.world===6) { ctx.fillStyle='#ecf0f1'; ctx.beginPath(); ctx.arc(celX, ch*0.2, 40, 0, Math.PI*2); ctx.fill(); ctx.fillStyle=wC.sT; ctx.beginPath(); ctx.arc(celX-10, ch*0.2-10, 35, 0, Math.PI*2); ctx.fill(); }
 
-            // Se asienta la decoración en state.floorY para que no se superponga bajo el suelo
             ctx.fillStyle = wC.m; for(let d of decors.layer2) { let px = (d.x - camX * 0.1); if(px > -d.w && px < cw) { ctx.beginPath(); ctx.moveTo(px, state.floorY); ctx.lineTo(px+d.w/2, state.floorY-d.h); ctx.lineTo(px+d.w, state.floorY); ctx.fill(); } }
             ctx.fillStyle = wC.h; for(let d of decors.layer3) { let px = (d.x - camX * 0.3); if(px > -d.r && px < cw+d.r) { ctx.beginPath(); ctx.arc(px, state.floorY, d.r, Math.PI, 0); ctx.fill(); } }
             ctx.fillStyle = wC.b; for(let d of decors.layer4) { let px = (d.x - camX * 0.6); if(px > -d.r && px < cw+d.r) { ctx.beginPath(); ctx.arc(px, state.floorY, d.r, Math.PI, 0); ctx.fill(); } }
@@ -808,7 +801,6 @@
                 blocks.push(new Block(-TILE, state.floorY - (h * TILE) + TILE, 'empty'));
             }
             
-            // Creación profunda del piso inicial
             for(let i=0; i<15; i++) { 
                 for(let d=0; d<6; d++) blocks.push(new Block(curX, state.floorY + d*TILE, d === 0 ? 'ground' : 'underground'));
                 curX += TILE; 
@@ -820,7 +812,7 @@
             let heartPos = Math.floor(LEVEL_LENGTH * 0.5); 
             let torchPos = Math.floor(LEVEL_LENGTH * 0.4); 
 
-            let numEnemies = (2 + (state.world * 2)) * 2; // MODIFICACIÓN: ENEMIGOS DUPLICADOS
+            let numEnemies = (2 + (state.world * 2)) * 2; 
             let enemyPositions = new Set();
             while(enemyPositions.size < numEnemies) {
                 enemyPositions.add(Math.floor(Math.random() * (LEVEL_LENGTH - 40)) + 25);
@@ -836,7 +828,6 @@
                     continue;
                 }
                 
-                // Relleno principal del piso en el recorrido
                 for(let d=0; d<6; d++) blocks.push(new Block(curX, state.floorY + d*TILE, d === 0 ? 'ground' : 'underground'));
                 
                 if (i === heartPos) {
@@ -867,7 +858,6 @@
                 curX += TILE;
             }
             
-            // Piso final profundo
             for(let i=0; i<20; i++) { 
                 for(let d=0; d<6; d++) blocks.push(new Block(curX, state.floorY + d*TILE, d === 0 ? 'ground' : 'underground'));
                 curX += TILE; 
@@ -893,14 +883,15 @@
             
             [F.C5, F.E5, F.G5, F.C6, F.C6].forEach((f,i)=>setTimeout(()=>AudioEngine.playSFX(f, 'sine', 0.15, 0.2), i*120));
             
-            // MODIFICACIÓN: FUEGOS ARTIFICIALES
             for (let i = 0; i < 20; i++) {
                 setTimeout(() => {
                     if (state.current !== GAME_STATES.WIN && state.current !== GAME_STATES.ENDING) return;
                     let fx = state.camX + cw * 0.2 + Math.random() * (cw * 0.6);
                     let fy = state.floorY - 100 - Math.random() * (ch * 0.6);
                     spawnExplosion(fx, fy, `hsl(${Math.random()*360},100%,50%)`, 40);
-                    AudioEngine.playSFX(200 + Math.random()*400, 'triangle', 0.15, 0.1, 50);
+                    if (state.current !== GAME_STATES.ENDING) {
+                        AudioEngine.playSFX(200 + Math.random()*400, 'triangle', 0.15, 0.1, 50);
+                    }
                 }, i * 150);
             }
             
@@ -1029,7 +1020,6 @@
                 ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
                 drawParallax(state.camX); ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,cw,ch);
                 
-                // MODIFICACIÓN: RENDERIZAR FUEGOS ARTIFICIALES
                 ctx.save();
                 ctx.translate(-Math.floor(state.camX), 0);
                 particles.forEach(p => p.draw(ctx));
@@ -1066,7 +1056,6 @@
                 state.menuTimer += dt;
                 if(Math.random() < 0.05) {
                     spawnExplosion(state.camX + cw/2 + (Math.random()-0.5)*cw, Math.random()*(ch/2), `hsl(${Math.random()*360},100%,50%)`, 40);
-                    AudioEngine.playSFX(150 + Math.random()*200, 'triangle', 0.2, 0.1, 50);
                 }
             } else if(state.current !== GAME_STATES.WIN) {
                 player.update(dt);
