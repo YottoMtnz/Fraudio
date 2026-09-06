@@ -1,4 +1,4 @@
-<!-- Código actualizado con cartel Nintendo, antorcha, disparo y dificultad racionalizada -->
+<!-- Código actualizado con arreglos de UI, botón de fuego, temporizador satélite y nombres de niveles -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -32,6 +32,12 @@
         const PHYS = { GRAVITY: 2400, MAX_FALL: 950, ACCEL: 3000, FRICTION: 0.00001, MAX_SPEED: 350, MAX_SPEED_SAT: 500, JUMP_FORCE: -850, BOUNCE_FORCE: -600 };
         const GAME_STATES = { MENU: 0, PLAYING: 1, DEAD: 2, WIN: 3, GAMEOVER: 4, ENDING: 5 };
         
+        const LEVEL_NAMES = [ 
+            "", "PRADERAS VERDES", "DESIERTO ROJO", "CUMBRES NEVADAS", 
+            "VOLCÁN ACTIVO", "PLAYA CRISTAL", "BOSQUE OSCURO", 
+            "CIELO AZUL", "ZONA ABISAL" 
+        ];
+
         let state = { current: GAME_STATES.MENU, lives: 5, score: 0, world: 1, camX: 0, floorY: 0, lastTime: performance.now(), menuTimer: 0, time: 150 };
         let player = null;
         let blocks = [], enemies = [], projectiles = [], playerProjectiles = [], items = [], particles = [], texts = [], weatherParticles = [];
@@ -72,9 +78,12 @@
         };
         
         function updateBtnPositions() { 
-            vBtns.left.y=ch-70; vBtns.right.y=ch-70; 
-            vBtns.jump.y=ch-70; vBtns.jump.x=cw-70; 
-            vBtns.shoot.y=ch-70; vBtns.shoot.x=cw-165; 
+            vBtns.left.y = ch - 70; 
+            vBtns.right.y = ch - 70; 
+            vBtns.jump.y = ch - 70; 
+            vBtns.jump.x = cw - 70; 
+            vBtns.shoot.x = vBtns.left.x; 
+            vBtns.shoot.y = vBtns.left.y - 85; 
         }
 
         function checkTouches(e) {
@@ -168,6 +177,9 @@
                     let isSat = player && player.satelliteTimer > 0;
                     let arr = isSat ? this.satMelody : this.melodies[this.activeMelodyIndex];
                     let tempo = isSat ? 160 : 130;
+                    
+                    if (!isSat && state.time <= 30) tempo = 180; 
+
                     let note = arr[this.currentNoteIndex % arr.length];
                     let dur = (60 / tempo) * note.d * 4;
                     this.playNote(note.n, this.nextNoteTime, dur, isSat ? 'triangle' : 'sine'); 
@@ -215,7 +227,7 @@
                 this.onGround = false; this.facing = 1; this.form = 'small'; this.invulnTimer = 0; this.satelliteTimer = 0; this.animTimer = 0;
                 this.coyoteTimer = 0; this.jumpBufferTimer = 0; 
                 this.squashX = 1; this.squashY = 1; 
-                this.hasTorch = false;
+                this.hasTorch = false; 
             }
             update(dt) {
                 if(state.current === GAME_STATES.DEAD) { this.vy += PHYS.GRAVITY * dt; this.y += this.vy * dt; return; }
@@ -279,7 +291,7 @@
 
                 if (this.hasTorch && keys.shootPressedThisFrame) {
                     keys.shootPressedThisFrame = false;
-                    if (playerProjectiles.length < 3) {
+                    if (playerProjectiles.length < 3) { 
                         playerProjectiles.push(new PlayerFireball(this.x + this.w/2, this.y + this.h/2, this.facing));
                         AudioEngine.shoot(); 
                     }
@@ -359,14 +371,14 @@
         class PlayerFireball {
             constructor(x, y, dir) {
                 this.x = x; this.y = y; this.w = 14; this.h = 14;
-                this.vx = dir * 450; this.vy = 0; this.life = 2;
+                this.vx = dir * 450; this.vy = 0; this.life = 2; 
             }
             update(dt) {
                 this.vy += PHYS.GRAVITY * dt; this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt;
                 for (let b of blocks) {
                     if (AABB(this, b)) {
                         if (this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 10) {
-                            this.y = b.y - this.h; this.vy = -350;
+                            this.y = b.y - this.h; this.vy = -350; 
                         } else {
                             this.life = 0; spawnExplosion(this.x, this.y, '#f39c12', 6);
                         }
@@ -393,7 +405,14 @@
                 if(this.type !== 'question') return; this.bump(); this.type = 'empty';
                 if(this.content === 'telephone') { items.push(new Item(this.x+8, this.y, 'telephone')); AudioEngine.powerupAppears(); }
                 else if (this.content === 'heart') { items.push(new Item(this.x+8, this.y, 'heart')); AudioEngine.powerupAppears(); }
-                else if (this.content === 'torch') { items.push(new Item(this.x+8, this.y, 'torch')); AudioEngine.powerupAppears(); }
+                else if (this.content === 'torch') { 
+                    if (player && player.form === 'small') {
+                        items.push(new Item(this.x+8, this.y, 'telephone')); 
+                    } else {
+                        items.push(new Item(this.x+8, this.y, 'torch')); 
+                    }
+                    AudioEngine.powerupAppears(); 
+                }
                 else { items.push(new Item(this.x+10, this.y, 'coin')); AudioEngine.coin(); state.score += 100; }
             }
             update(dt) { if(this.bumpY < 0) { this.bumpY += 100 * dt; if(this.bumpY > 0) this.bumpY = 0; } }
@@ -637,6 +656,7 @@
                 ctx.strokeText(this.txt, this.x, this.y); ctx.fillText(this.txt, this.x, this.y); ctx.globalAlpha = 1;
             }
         }
+        
         class WeatherParticle {
             constructor() { this.reset(true); }
             reset(randY = false) {
@@ -698,9 +718,9 @@
             
             let phone1 = Math.floor(LEVEL_LENGTH * 0.3), phone2 = Math.floor(LEVEL_LENGTH * 0.7);
             let heartPos = Math.floor(LEVEL_LENGTH * 0.5); 
-            let torchPos = Math.floor(LEVEL_LENGTH * 0.4);
+            let torchPos = Math.floor(LEVEL_LENGTH * 0.4); 
 
-            let numEnemies = 2 + (state.world * 2);
+            let numEnemies = 2 + (state.world * 2); 
             let enemyPositions = new Set();
             while(enemyPositions.size < numEnemies) {
                 enemyPositions.add(Math.floor(Math.random() * (LEVEL_LENGTH - 40)) + 25);
@@ -758,6 +778,7 @@
 
         function winLevel() {
             if(state.current === GAME_STATES.WIN || state.current === GAME_STATES.ENDING) return;
+            state.score += 1000 * state.world;
             state.score += Math.floor(state.time) * 10;
             
             [F.C5, F.E5, F.G5, F.C6, F.C6].forEach((f,i)=>setTimeout(()=>AudioEngine.playSFX(f, 'sine', 0.15, 0.2), i*120));
@@ -780,15 +801,24 @@
         }
 
         function drawUI() {
-            ctx.fillStyle = '#fff'; ctx.font = '24px Impact'; 
+            let baseSize = Math.max(16, Math.min(24, cw/20)); 
+            ctx.fillStyle = '#fff'; ctx.font = baseSize + 'px Impact'; 
             ctx.shadowColor = '#000'; ctx.shadowBlur = 4; ctx.shadowOffsetX = 2; ctx.shadowOffsetY = 2;
             
-            ctx.textAlign = 'left'; ctx.fillText(`❤️ ${state.lives}   🪙 ${state.score}`, 30, 40); 
-            ctx.textAlign = 'right'; ctx.fillText(`NIVEL ${state.world}`, cw-30, 40);
+            ctx.textAlign = 'left'; 
+            ctx.fillText(`❤️ ${state.lives}   🪙 ${state.score}`, 15, 35); 
             
+            ctx.textAlign = 'right'; 
+            ctx.fillText(`NIVEL ${state.world}`, cw-15, 30);
+            
+            ctx.font = (baseSize - 6) + 'px Impact';
+            let lvlName = LEVEL_NAMES[state.world] || 'ZONA DESCONOCIDA';
+            ctx.fillText(lvlName, cw-15, 50);
+
+            ctx.font = baseSize + 'px Impact';
             ctx.textAlign = 'center'; 
             if(state.time <= 30) ctx.fillStyle = '#ff4757'; 
-            ctx.fillText(`⏱️ ${Math.max(0, Math.ceil(state.time))}`, cw/2, 100);
+            ctx.fillText(`⏱️ ${Math.max(0, Math.ceil(state.time))}`, cw/2, 40);
 
             ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
 
@@ -806,6 +836,18 @@
                 ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '30px Arial';
                 ctx.fillText('◄', vBtns.left.x, vBtns.left.y); ctx.fillText('►', vBtns.right.x, vBtns.right.y); ctx.fillText('▲', vBtns.jump.x, vBtns.jump.y);
                 if (player && player.hasTorch) { ctx.font = '24px Arial'; ctx.fillText('🔥', vBtns.shoot.x, vBtns.shoot.y); }
+            }
+
+            // Contador Satelital
+            if (player && player.satelliteTimer > 0) {
+                ctx.save();
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillStyle = '#00d2d3';
+                ctx.font = 'bold 80px Impact';
+                ctx.shadowColor = '#000'; ctx.shadowBlur = 15; ctx.shadowOffsetX = 4; ctx.shadowOffsetY = 4;
+                ctx.fillText(Math.ceil(player.satelliteTimer), cw/2, ch/2 - 40);
+                ctx.restore();
             }
         }
 
@@ -942,9 +984,10 @@
             if (wallHitTimer > 0 && state.current === GAME_STATES.PLAYING) {
                 ctx.save();
                 ctx.textAlign = 'left';
-                ctx.font = 'bold 28px "Arial Black", Impact, sans-serif';
+                let fontSize = Math.max(14, Math.min(24, cw / 22));
+                ctx.font = `bold ${fontSize}px "Arial Black", Impact, sans-serif`;
                 let msg = "¡FRAUDIO, ES PARA TU OTRA DERECHA! ➔";
-                let boxX = 30, boxY = ch - 250;
+                let boxX = 15, boxY = ch - 180; 
                 
                 ctx.shadowColor = '#000';
                 ctx.shadowBlur = 4;
@@ -952,7 +995,7 @@
                 ctx.shadowOffsetY = 3;
 
                 ctx.strokeStyle = '#fff';
-                ctx.lineWidth = 6;
+                ctx.lineWidth = fontSize / 4;
                 ctx.strokeText(msg, boxX, boxY);
 
                 ctx.fillStyle = '#e60012'; 
@@ -985,4 +1028,3 @@
     </script>
 </body>
 </html>
-
