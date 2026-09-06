@@ -1,4 +1,3 @@
-<!-- Código actualizado con arreglos de UI, botón de fuego, temporizador satélite y nombres de niveles -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -48,12 +47,36 @@
         let hitStopTimer = 0; 
         let wallHitTimer = 0; 
 
+        // Truco original (Vidas/Win)
         function checkSecretCheat(x, y) {
             if (x >= 80 && x <= 140 && y >= 10 && y <= 50) {
                 let now = performance.now();
                 if (cheatTaps === 0 || now - cheatStartTime > 10000) { cheatTaps = 1; cheatStartTime = now; } 
                 else { cheatTaps++; }
                 if (cheatTaps >= 7 && state.current === GAME_STATES.PLAYING) { cheatTaps = 0; winLevel(); }
+            }
+        }
+
+        // Nuevo Easter Egg: Modo Invencible (16 toques al reloj)
+        let timerCheatTaps = 0; let timerCheatStartTime = 0;
+        function checkTimerCheat(x, y) {
+            if (x >= cw/2 - 60 && x <= cw/2 + 60 && y >= 10 && y <= 70) {
+                let now = performance.now();
+                if (timerCheatTaps === 0 || now - timerCheatStartTime > 5000) { 
+                    timerCheatTaps = 1; 
+                    timerCheatStartTime = now; 
+                } else { 
+                    timerCheatTaps++; 
+                }
+                
+                if (timerCheatTaps >= 16 && state.current === GAME_STATES.PLAYING && player) {
+                    timerCheatTaps = 0;
+                    player.godMode = true;
+                    player.satelliteTimer = 9999; 
+                    spawnText("¡INVENCIBLE!", player.x + player.w/2, player.y - 40, '#00d2d3', 40);
+                    spawnExplosion(player.x, player.y, '#00d2d3', 50);
+                    AudioEngine.grow();
+                }
             }
         }
 
@@ -108,12 +131,21 @@
         canvas.addEventListener('touchstart', (e) => { 
             tryInitGame(); checkTouches(e); 
             let rect = canvas.getBoundingClientRect();
-            for(let i=0; i<e.touches.length; i++) checkSecretCheat(e.touches[i].clientX - rect.left, e.touches[i].clientY - rect.top);
+            for(let i=0; i<e.touches.length; i++) {
+                let tx = e.touches[i].clientX - rect.left;
+                let ty = e.touches[i].clientY - rect.top;
+                checkSecretCheat(tx, ty);
+                checkTimerCheat(tx, ty);
+            }
         }, {passive: false});
 
         canvas.addEventListener('mousedown', (e) => {
             tryInitGame();
-            let rect = canvas.getBoundingClientRect(); checkSecretCheat(e.clientX - rect.left, e.clientY - rect.top);
+            let rect = canvas.getBoundingClientRect(); 
+            let tx = e.clientX - rect.left;
+            let ty = e.clientY - rect.top;
+            checkSecretCheat(tx, ty);
+            checkTimerCheat(tx, ty);
         });
 
         canvas.addEventListener('touchmove', checkTouches, {passive: false});
@@ -178,7 +210,7 @@
                     let arr = isSat ? this.satMelody : this.melodies[this.activeMelodyIndex];
                     let tempo = isSat ? 160 : 130;
                     
-                    if (!isSat && state.time <= 30) tempo = 180; 
+                    if (!isSat && state.time <= 30 && (!player || !player.godMode)) tempo = 180; 
 
                     let note = arr[this.currentNoteIndex % arr.length];
                     let dur = (60 / tempo) * note.d * 4;
@@ -228,6 +260,7 @@
                 this.coyoteTimer = 0; this.jumpBufferTimer = 0; 
                 this.squashX = 1; this.squashY = 1; 
                 this.hasTorch = false; 
+                this.godMode = false;
             }
             update(dt) {
                 if(state.current === GAME_STATES.DEAD) { this.vy += PHYS.GRAVITY * dt; this.y += this.vy * dt; return; }
@@ -237,8 +270,8 @@
                 this.squashY += (1 - this.squashY) * 10 * dt;
 
                 if(this.satelliteTimer > 0) {
-                    this.satelliteTimer -= dt;
-                    if(this.satelliteTimer <= 0) spawnText("FIN SATELITE", this.x, this.y-20, '#fff');
+                    if (!this.godMode) this.satelliteTimer -= dt;
+                    if(this.satelliteTimer <= 0 && !this.godMode) spawnText("FIN SATELITE", this.x, this.y-20, '#fff');
                     else if(Math.random() < 0.4) spawnExplosion(this.x+Math.random()*this.w, this.y+Math.random()*this.h, `hsl(${Math.random()*360},100%,50%)`, 1);
                 }
                 let maxSpd = this.satelliteTimer > 0 ? PHYS.MAX_SPEED_SAT : PHYS.MAX_SPEED;
@@ -321,7 +354,16 @@
                     }
                 }
                 if(Math.abs(this.vx) > 10 && this.onGround) this.animTimer += Math.abs(this.vx) * dt * 0.03; else this.animTimer = 0;
-                if(this.y > state.floorY + ch) die();
+                
+                // Prevención de muerte por caída en God Mode
+                if(this.y > state.floorY + ch) {
+                    if (this.godMode) {
+                        this.y = -100;
+                        this.vy = 0;
+                    } else {
+                        die();
+                    }
+                }
             }
             setSize(newForm) {
                 let bot = this.y + this.h; this.form = newForm;
@@ -329,7 +371,7 @@
                 this.y = bot - this.h; 
             }
             damage() {
-                if(this.invulnTimer > 0 || this.satelliteTimer > 0) return;
+                if(this.invulnTimer > 0 || this.satelliteTimer > 0 || this.godMode) return;
                 if(this.form === 'big') {
                     this.setSize('small'); this.invulnTimer = 2; AudioEngine.shrink(); this.hasTorch = false;
                     spawnText("¡OUCH!", this.x, this.y, '#ff4757'); spawnExplosion(this.x+this.w/2, this.y+this.h/2, '#fff', 15);
@@ -469,7 +511,7 @@
                     if(this.type === 'telephone') {
                         AudioEngine.grow();
                         if(player.form === 'small') { player.setSize('big'); spawnText("+ GRANDE", this.x, this.y, '#f1c40f'); spawnExplosion(this.x, this.y, '#f1c40f', 20); } 
-                        else { player.setSize('big'); player.satelliteTimer = 15; spawnText("¡FRAUDIO!", player.x, player.y - 50, '#00d2d3', 60); spawnExplosion(player.x, player.y, '#00d2d3', 50); }
+                        else { player.setSize('big'); if(!player.godMode) player.satelliteTimer = 15; spawnText("¡FRAUDIO!", player.x, player.y - 50, '#00d2d3', 60); spawnExplosion(player.x, player.y, '#00d2d3', 50); }
                     } else if (this.type === 'torch') {
                         if(!player.hasTorch) {
                             player.hasTorch = true; player.setSize('big'); spawnText("¡FUEGO!", this.x, this.y, '#e74c3c'); spawnExplosion(this.x, this.y, '#e74c3c', 20); AudioEngine.grow();
@@ -554,7 +596,7 @@
                 
                 this.animTimer += dt * 5;
                 if(state.current === GAME_STATES.PLAYING && AABB(this, player)) {
-                    if(player.satelliteTimer > 0) this.die(true);
+                    if(player.satelliteTimer > 0 || player.godMode) this.die(true);
                     else if(player.vy > 0 && player.y + player.h - (player.vy*dt) <= this.y + this.h/2) { 
                         this.die(false); 
                         player.vy = PHYS.BOUNCE_FORCE; 
@@ -605,7 +647,7 @@
             update(dt) {
                 this.x += this.vx * dt; this.life -= dt;
                 if(AABB(this, player)) {
-                    if(player.satelliteTimer > 0) { this.life = 0; spawnExplosion(this.x, this.y, '#fff', 5); } else { player.damage(); this.life = 0; }
+                    if(player.satelliteTimer > 0 || player.godMode) { this.life = 0; spawnExplosion(this.x, this.y, '#fff', 5); } else { player.damage(); this.life = 0; }
                 }
             }
             draw(ctx) {
@@ -701,8 +743,8 @@
         }
 
         function generateLevel(keepState) {
-            let oldForm = 'small', oldSat = 0, oldTorch = false; 
-            if(keepState && player) { oldForm = player.form; oldSat = player.satelliteTimer; oldTorch = player.hasTorch; }
+            let oldForm = 'small', oldSat = 0, oldTorch = false, oldGodMode = false; 
+            if(keepState && player) { oldForm = player.form; oldSat = player.satelliteTimer; oldTorch = player.hasTorch; oldGodMode = player.godMode; }
             
             blocks = []; enemies = []; projectiles = []; playerProjectiles = []; items = []; particles = []; texts = []; 
             
@@ -714,7 +756,7 @@
             }
             
             for(let i=0; i<15; i++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; }
-            player = new Player(150, state.floorY - 50); player.setSize(oldForm); player.satelliteTimer = oldSat; player.hasTorch = oldTorch;
+            player = new Player(150, state.floorY - 50); player.setSize(oldForm); player.satelliteTimer = oldSat; player.hasTorch = oldTorch; player.godMode = oldGodMode;
             
             let phone1 = Math.floor(LEVEL_LENGTH * 0.3), phone2 = Math.floor(LEVEL_LENGTH * 0.7);
             let heartPos = Math.floor(LEVEL_LENGTH * 0.5); 
@@ -778,7 +820,7 @@
 
         function winLevel() {
             if(state.current === GAME_STATES.WIN || state.current === GAME_STATES.ENDING) return;
-            state.score += 1000 * state.world;
+            
             state.score += Math.floor(state.time) * 10;
             
             [F.C5, F.E5, F.G5, F.C6, F.C6].forEach((f,i)=>setTimeout(()=>AudioEngine.playSFX(f, 'sine', 0.15, 0.2), i*120));
@@ -817,8 +859,10 @@
 
             ctx.font = baseSize + 'px Impact';
             ctx.textAlign = 'center'; 
-            if(state.time <= 30) ctx.fillStyle = '#ff4757'; 
-            ctx.fillText(`⏱️ ${Math.max(0, Math.ceil(state.time))}`, cw/2, 40);
+            if(state.time <= 30 && (!player || !player.godMode)) ctx.fillStyle = '#ff4757'; 
+            
+            let timeText = (player && player.godMode) ? "∞" : Math.max(0, Math.ceil(state.time));
+            ctx.fillText(`⏱️ ${timeText}`, cw/2, 40);
 
             ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
 
@@ -838,8 +882,7 @@
                 if (player && player.hasTorch) { ctx.font = '24px Arial'; ctx.fillText('🔥', vBtns.shoot.x, vBtns.shoot.y); }
             }
 
-            // Contador Satelital
-            if (player && player.satelliteTimer > 0) {
+            if (player && player.satelliteTimer > 0 && !player.godMode) {
                 ctx.save();
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
@@ -943,7 +986,7 @@
             } else if(state.current !== GAME_STATES.WIN) {
                 player.update(dt);
                 if (state.current === GAME_STATES.PLAYING) {
-                    state.time -= dt;
+                    if (!player.godMode) state.time -= dt;
                     if (state.time <= 0) die();
                 }
             }
@@ -959,18 +1002,52 @@
             if(state.current === GAME_STATES.PLAYING && player.x > goal.x) winLevel();
             let targetX = player.x - cw * 0.4; if(targetX < 0) targetX = 0; state.camX += (targetX - state.camX) * (1 - Math.pow(0.001, dt));
 
-            if (state.current === GAME_STATES.ENDING) { ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch); } 
+            if (state.current === GAME_STATES.ENDING) { 
+                let pCamX = state.menuTimer * 200; 
+                ctx.clearRect(0,0,cw,ch); 
+                drawParallax(pCamX); 
+                let floor = ch - 180;
+                ctx.fillStyle = WC[state.world] ? WC[state.world].gM : WC[1].gM;
+                ctx.fillRect(0, floor, cw, ch - floor);
+                ctx.fillStyle = WC[state.world] ? WC[state.world].gT : WC[1].gT;
+                ctx.fillRect(0, floor, cw, 12);
+                ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,cw,ch);
+            } 
             else { ctx.clearRect(0,0,cw,ch); drawParallax(state.camX); weatherParticles.forEach(p => p.draw(ctx)); }
             
             ctx.save(); ctx.translate(-Math.floor(state.camX), 0); const viewL = state.camX - 100, viewR = state.camX + cw + 100;
 
             if (state.current === GAME_STATES.ENDING) {
                 particles.forEach(p => p.draw(ctx));
-                let poleX = state.camX + cw/2, poleY = ch/2 + 100;
-                ctx.fillStyle = '#bdc3c7'; ctx.fillRect(poleX, poleY - 150, 8, 150);
-                ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(poleX+4, poleY-150, 8, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle = '#2ecc71'; ctx.beginPath(); ctx.moveTo(poleX+8, poleY-140); ctx.lineTo(poleX+50, poleY-125); ctx.lineTo(poleX+8, poleY-110); ctx.fill();
-                let dummyPlayer = new Player(poleX - 50, poleY - 40); dummyPlayer.form = 'big'; dummyPlayer.draw(ctx);
+                let floor = ch - 180;
+                
+                if(!window.endDummyPlayer) { 
+                    window.endDummyPlayer = new Player(0, floor - 40); 
+                    window.endDummyPlayer.setSize('big'); 
+                    window.endDummyPlayer.hasTorch = true; 
+                    window.endDummyPlayer.facing = 1;
+                }
+                window.endDummyPlayer.x = state.camX + cw/2 - 120; 
+                window.endDummyPlayer.y = floor - window.endDummyPlayer.h; 
+                window.endDummyPlayer.animTimer = state.menuTimer * 15;
+                window.endDummyPlayer.onGround = true; window.endDummyPlayer.vx = 200;
+                window.endDummyPlayer.draw(ctx);
+
+                if(!window.endDummyEnemies) {
+                    window.endDummyEnemies = [
+                        new Enemy(0, floor, 'walk'),
+                        new Enemy(0, floor, 'jump'),
+                        new Enemy(0, floor, 'shoot'),
+                        new Enemy(0, floor, 'fly')
+                    ];
+                }
+                window.endDummyEnemies.forEach((e, i) => {
+                    e.x = state.camX + cw/2 + 20 + (i * 70); 
+                    e.y = e.type === 'fly' ? floor - 100 - e.h : floor - e.h;
+                    e.animTimer = state.menuTimer * 15; 
+                    e.vx = 200; 
+                    e.draw(ctx);
+                });
             } else {
                 ctx.fillStyle='#bdc3c7'; ctx.fillRect(goal.x+TILE/2-4, goal.y, 8, goal.h); ctx.fillStyle='#f1c40f'; ctx.beginPath(); ctx.arc(goal.x+TILE/2, goal.y, 8, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle='#2ecc71'; ctx.beginPath(); ctx.moveTo(goal.x+TILE/2+4, goal.y+20); ctx.lineTo(goal.x+TILE/2+40, goal.y+35); ctx.lineTo(goal.x+TILE/2+4, goal.y+50); ctx.fill();
@@ -1012,9 +1089,9 @@
                 ctx.fillText("THANKS FOR PLAYING!", cw/2, ch/4 + 40 + bounce);
                 
                 ctx.font = `bold 24px Arial Black`; ctx.fillStyle = '#2ecc71';
-                ctx.fillText("CREADO POR / CREATED BY:", cw/2, ch*0.75);
+                ctx.fillText("CREADO POR / CREATED BY:", cw/2, ch/2 + 50);
                 ctx.fillStyle = '#ff4757'; ctx.font = `bold 32px Impact`;
-                ctx.fillText("FRAUDY MARTINEZ", cw/2, ch*0.75 + 40);
+                ctx.fillText("FRAUDY MARTINEZ", cw/2, ch/2 + 90);
                 
                 if(state.menuTimer > 6 && Math.floor(state.menuTimer) % 2 === 0) {
                     ctx.font = `18px Arial Black`; ctx.fillStyle = '#fff'; ctx.fillText("TOCA PARA JUGAR OTRA VEZ", cw/2, ch - 30);
@@ -1028,3 +1105,4 @@
     </script>
 </body>
 </html>
+
