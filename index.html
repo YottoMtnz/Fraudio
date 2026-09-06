@@ -31,7 +31,6 @@
         const PHYS = { GRAVITY: 2400, MAX_FALL: 950, ACCEL: 3000, FRICTION: 0.00001, MAX_SPEED: 350, MAX_SPEED_SAT: 500, JUMP_FORCE: -850, BOUNCE_FORCE: -600 };
         const GAME_STATES = { MENU: 0, PLAYING: 1, DEAD: 2, WIN: 3, GAMEOVER: 4, ENDING: 5 };
         
-        // CORRECCIÓN: Arrancar siempre con 5 vidas
         let state = { current: GAME_STATES.MENU, lives: 5, score: 0, world: 1, camX: 0, floorY: 0, lastTime: performance.now(), menuTimer: 0, time: 150 };
         let player = null;
         let blocks = [], enemies = [], projectiles = [], items = [], particles = [], texts = [], weatherParticles = [];
@@ -39,6 +38,7 @@
         
         let goal = null;
         let cheatTaps = 0; let cheatStartTime = 0;
+        let hitStopTimer = 0; // NUEVO: Control de pausa de impacto (Hit-Stop)
 
         function checkSecretCheat(x, y) {
             if (x >= 80 && x <= 140 && y >= 10 && y <= 50) {
@@ -61,13 +61,14 @@
             { sT:'#000000', sB:'#001100', m:'#003300', h:'#00FF00', b:'#32CD32', gT:'#00FF00', gM:'#006400', gB:'#000000', eM:'#FF00FF', eR:'#00FFFF' }
         ];
 
-        const keys = { left: false, right: false, up: false };
+        const keys = { left: false, right: false, up: false, jumpPressedThisFrame: false };
         const vBtns = { left: { x: 60, y: ch-70, r: 40, active: false }, right: { x: 160, y: ch-70, r: 40, active: false }, jump: { x: cw-70, y: ch-70, r: 45, active: false } };
         function updateBtnPositions() { vBtns.left.y=ch-70; vBtns.right.y=ch-70; vBtns.jump.y=ch-70; vBtns.jump.x=cw-70; }
         window.addEventListener('resize', updateBtnPositions);
 
         function checkTouches(e) {
             e.preventDefault(); let rect = canvas.getBoundingClientRect();
+            let prevUp = keys.up;
             keys.left = false; keys.right = false; keys.up = false;
             vBtns.left.active = false; vBtns.right.active = false; vBtns.jump.active = false;
             for(let i=0; i<e.touches.length; i++) {
@@ -76,6 +77,7 @@
                 if(Math.hypot(tx-vBtns.right.x, ty-vBtns.right.y)<vBtns.right.r+30) { keys.right=true; vBtns.right.active=true; }
                 if(Math.hypot(tx-vBtns.jump.x, ty-vBtns.jump.y)<vBtns.jump.r+30) { keys.up=true; vBtns.jump.active=true; }
             }
+            if (!prevUp && keys.up) keys.jumpPressedThisFrame = true;
         }
         
         canvas.addEventListener('touchstart', (e) => { 
@@ -84,7 +86,6 @@
             for(let i=0; i<e.touches.length; i++) checkSecretCheat(e.touches[i].clientX - rect.left, e.touches[i].clientY - rect.top);
         }, {passive: false});
 
-        // MEJORA: Añadido tryInitGame() aquí para que los clics de ratón en PC también activen el juego y el audio
         canvas.addEventListener('mousedown', (e) => {
             tryInitGame();
             let rect = canvas.getBoundingClientRect(); checkSecretCheat(e.clientX - rect.left, e.clientY - rect.top);
@@ -92,8 +93,20 @@
 
         canvas.addEventListener('touchmove', checkTouches, {passive: false});
         canvas.addEventListener('touchend', checkTouches, {passive: false});
-        window.addEventListener('keydown', e => { if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=true; if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=true; if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){keys.up=true; tryInitGame();} });
-        window.addEventListener('keyup', e => { if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=false; if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=false; if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space') keys.up=false; });
+        
+        window.addEventListener('keydown', e => { 
+            if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=true; 
+            if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=true; 
+            if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){
+                if(!keys.up) keys.jumpPressedThisFrame = true;
+                keys.up=true; tryInitGame();
+            } 
+        });
+        window.addEventListener('keyup', e => { 
+            if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=false; 
+            if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=false; 
+            if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space') keys.up=false; 
+        });
         window.addEventListener('blur', () => { keys.left = false; keys.right = false; keys.up = false; vBtns.left.active = false; vBtns.right.active = false; vBtns.jump.active = false; });
 
         function tryInitGame() { 
@@ -174,10 +187,17 @@
                 this.x = x; this.y = y; this.baseW = 28; this.baseH = 40; this.bigW = 34; this.bigH = 60;
                 this.w = this.baseW; this.h = this.baseH; this.vx = 0; this.vy = 0;
                 this.onGround = false; this.facing = 1; this.form = 'small'; this.invulnTimer = 0; this.satelliteTimer = 0; this.animTimer = 0;
+                this.coyoteTimer = 0; this.jumpBufferTimer = 0; // NUEVO: Variables para controles indulgentes
+                this.squashX = 1; this.squashY = 1; // NUEVO: Para estiramiento y encogimiento (Squash & Stretch)
             }
             update(dt) {
                 if(state.current === GAME_STATES.DEAD) { this.vy += PHYS.GRAVITY * dt; this.y += this.vy * dt; return; }
                 if(this.invulnTimer > 0) this.invulnTimer -= dt;
+                
+                // Efecto de rebote visual (Squash & Stretch) volviendo a la normalidad
+                this.squashX += (1 - this.squashX) * 10 * dt;
+                this.squashY += (1 - this.squashY) * 10 * dt;
+
                 if(this.satelliteTimer > 0) {
                     this.satelliteTimer -= dt;
                     if(this.satelliteTimer <= 0) spawnText("FIN SATELITE", this.x, this.y-20, '#fff');
@@ -194,7 +214,6 @@
 
                 this.x += this.vx * dt;
                 
-                // FIX: Prevención de enganches en uniones (Seam Snagging)
                 for(let b of blocks) {
                     if(AABB(this, b)) {
                         if (this.y + this.h - (this.vy * dt) > b.y + 4) {
@@ -207,17 +226,54 @@
                 this.vy += PHYS.GRAVITY * dt;
                 if(this.vy > PHYS.MAX_FALL) this.vy = PHYS.MAX_FALL;
 
-                if(keys.up && this.onGround) { this.vy = PHYS.JUMP_FORCE; this.onGround = false; AudioEngine.jump(); spawnExplosion(this.x+this.w/2, this.y+this.h, '#fff', 4); }
+                // NUEVO: Manejo de Coyote Time y Jump Buffer
+                if (this.onGround) {
+                    this.coyoteTimer = 0.12; // 120ms de gracia al salir de una plataforma
+                } else {
+                    this.coyoteTimer -= dt;
+                }
 
+                if (keys.jumpPressedThisFrame) {
+                    this.jumpBufferTimer = 0.1; // Recuerda el salto por 100ms si se presiona antes de tocar suelo
+                    keys.jumpPressedThisFrame = false;
+                } else {
+                    this.jumpBufferTimer -= dt;
+                }
+
+                // Ejecución del salto con reglas indulgentes
+                if (this.jumpBufferTimer > 0 && (this.onGround || this.coyoteTimer > 0)) {
+                    this.vy = PHYS.JUMP_FORCE; 
+                    this.onGround = false; 
+                    this.coyoteTimer = 0; 
+                    this.jumpBufferTimer = 0;
+                    AudioEngine.jump(); 
+                    spawnExplosion(this.x+this.w/2, this.y+this.h, '#fff', 4);
+                    this.squashX = 0.7; this.squashY = 1.3; // Estiramiento al saltar
+                }
+
+                let wasOnGround = this.onGround;
                 this.y += this.vy * dt; this.onGround = false;
                 for(let b of blocks) {
                     if(AABB(this, b)) {
-                        if(this.vy > 0) { this.y = b.y - this.h; this.onGround = true; this.vy = 0; } 
+                        if(this.vy > 0) { 
+                            this.y = b.y - this.h; 
+                            if (!wasOnGround) {
+                                this.squashX = 1.3; this.squashY = 0.7; // Aplanamiento al aterrizar
+                            }
+                            this.onGround = true; 
+                            this.vy = 0; 
+                        } 
                         else if(this.vy < 0) {
                             this.y = b.y + b.h; this.vy = 0;
                             if(b.type === 'brick') {
                                 if(this.form !== 'small' || this.satelliteTimer > 0) {
-                                    AudioEngine.break(); state.score += 10; spawnExplosion(b.x+TILE/2, b.y+TILE/2, '#c0392b', 12); blocks.splice(blocks.indexOf(b), 1);
+                                    AudioEngine.break(); state.score += 10; 
+                                    // NUEVO: Partículas físicas para los ladrillos rotos
+                                    for(let k=0; k<4; k++) {
+                                        particles.push(new BrickParticle(b.x + TILE/2, b.y + TILE/2, (k%2===0?1:-1)*(Math.random()*150+50), -Math.random()*300-200));
+                                    }
+                                    blocks.splice(blocks.indexOf(b), 1);
+                                    hitStopTimer = 0.05; // Pausa dramática al romper ladrillo
                                 } else { AudioEngine.bump(); b.bump(); }
                             } else if(b.type === 'question') b.hit();
                             else { AudioEngine.bump(); b.bump(); }
@@ -241,7 +297,9 @@
             }
             draw(ctx) {
                 if(this.invulnTimer > 0 && Math.floor(Date.now() / 100) % 2 === 0) return;
-                ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h); ctx.scale(this.facing, 1);
+                ctx.save(); 
+                ctx.translate(this.x + this.w/2, this.y + this.h); 
+                ctx.scale(this.facing * this.squashX, this.squashY); // Aplicando Squash & Stretch
                 let scaleVal = (this.form === 'big') ? 1.4 : 1; ctx.scale(scaleVal, scaleVal);
                 let walk = this.onGround ? Math.sin(this.animTimer) : 1; if(state.current === GAME_STATES.DEAD) walk = 0;
 
@@ -405,7 +463,11 @@
                 this.animTimer += dt * 5;
                 if(state.current === GAME_STATES.PLAYING && AABB(this, player)) {
                     if(player.satelliteTimer > 0) this.die(true);
-                    else if(player.vy > 0 && player.y + player.h - (player.vy*dt) <= this.y + this.h/2) { this.die(false); player.vy = PHYS.BOUNCE_FORCE; } 
+                    else if(player.vy > 0 && player.y + player.h - (player.vy*dt) <= this.y + this.h/2) { 
+                        this.die(false); 
+                        player.vy = PHYS.BOUNCE_FORCE; 
+                        hitStopTimer = 0.08; // NUEVO: Pausa dramática (Hit-Stop) al aplastar enemigos
+                    } 
                     else player.damage();
                 }
             }
@@ -418,7 +480,6 @@
                 if(this.dead) return;
                 ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h);
                 
-                // FIX: Prevención de error cuando player es null (en el menú principal)
                 let pX = player ? player.x : (this.x - 100);
                 let dir = (pX < this.x) ? 1 : -1; 
                 
@@ -471,6 +532,30 @@
             update(dt) { this.vy += PHYS.GRAVITY * dt; this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt * 1.5; }
             draw(ctx) { if(this.life<=0) return; ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.col; ctx.fillRect(this.x, this.y, this.size, this.size); ctx.globalAlpha = 1; }
         }
+
+        // NUEVO: Clase especial para pedazos de ladrillo con físicas reales
+        class BrickParticle {
+            constructor(x, y, vx, vy) {
+                this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.life = 1; this.rot = Math.random()*Math.PI; this.rotSpeed = (Math.random()-0.5)*15;
+            }
+            update(dt) {
+                this.vy += PHYS.GRAVITY * dt;
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+                this.rot += this.rotSpeed * dt;
+                this.life -= dt * 1.2;
+            }
+            draw(ctx) {
+                if(this.life <= 0) return;
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rot);
+                ctx.fillStyle = '#c0392b';
+                ctx.fillRect(-8, -8, 16, 16);
+                ctx.restore();
+            }
+        }
+
         class TextEffect {
             constructor(txt, x, y, col, size=24) { this.txt=txt; this.x=x; this.y=y; this.col=col; this.size=size; this.life = 1; }
             update(dt) { this.y -= 80*dt; this.life -= dt; }
@@ -507,7 +592,6 @@
             weatherParticles = []; for(let i=0; i<60; i++) weatherParticles.push(new WeatherParticle());
         }
 
-        // PRE-INICIALIZACIÓN para que el menú principal tenga un fondo renderizado
         buildParallax();
 
         function drawParallax(camX) {
@@ -575,15 +659,12 @@
             goal = { x: curX - TILE*10, y: state.floorY - TILE*6, w: TILE, h: TILE*6 }; buildParallax();
         }
 
-        // CORRECCIÓN: Evitar el bug de teletransporte (Race Condition del timeout)
         function die() {
             if(state.current === GAME_STATES.DEAD || state.current === GAME_STATES.GAMEOVER) return;
             AudioEngine.die(); player.vy = PHYS.JUMP_FORCE; state.lives--;
             state.current = state.lives <= 0 ? GAME_STATES.GAMEOVER : GAME_STATES.DEAD;
             
             setTimeout(() => { 
-                // Solo ejecutar si TODAVIA estamos en estado DEAD,
-                // si el jugador reinició a mano desde la pantalla Game Over, será PLAYING y esto se ignora.
                 if(state.current === GAME_STATES.DEAD) resetGame('death'); 
             }, 3000);
         }
@@ -599,7 +680,6 @@
             else { state.current = GAME_STATES.WIN; setTimeout(() => { resetGame('next'); }, 3000); }
         }
 
-        // CORRECCIÓN: Asegurarnos de que el botón de menú y game over vuelva a dar las 5 vidas completas.
         function resetGame(reason) {
             let keepState = false;
             if (reason === 'menu' || reason === 'gameover') { state.lives = 5; state.score = 0; state.world = 1; player = null; } 
@@ -609,7 +689,7 @@
             AudioEngine.activeMelodyIndex = 0; 
             generateLevel(keepState);
             state.camX = player.x - cw/3; state.current = GAME_STATES.PLAYING; state.lastTime = performance.now();
-            AudioEngine.currentNoteIndex = 0; keys.left = false; keys.right = false; keys.up = false;
+            AudioEngine.currentNoteIndex = 0; keys.left = false; keys.right = false; keys.up = false; keys.jumpPressedThisFrame = false;
         }
 
         function drawUI() {
@@ -636,26 +716,22 @@
             }
         }
 
-        // FIX: Integración de la escena "Attract Mode" para el menú principal
         function drawFullScreenUI(dt) {
             state.menuTimer += dt || 0.05; 
             let bounce = Math.sin(state.menuTimer * 3) * 10;
             
             if(state.current === GAME_STATES.MENU) {
-                // Dibujar fondo parallax animado simulando movimiento
                 let camX = state.menuTimer * 150;
                 drawParallax(camX);
                 
-                // Dibujar suelo estático decorativo
                 let floor = ch - 180;
                 ctx.fillStyle = WC[1].gM; ctx.fillRect(0, floor, cw, ch - floor);
                 ctx.fillStyle = WC[1].gT; ctx.fillRect(0, floor, cw, 12);
                 
-                // Generar e instanciar los actores virtuales solo una vez
                 if(!window.dummyPlayer) { window.dummyPlayer = new Player(cw/2, floor - 40); }
                 window.dummyPlayer.x = cw/2 + 50; window.dummyPlayer.y = floor - 40;
                 window.dummyPlayer.animTimer = state.menuTimer * 10;
-                window.dummyPlayer.onGround = true; window.dummyPlayer.vx = 100; // Forzamos animación de carrera
+                window.dummyPlayer.onGround = true; window.dummyPlayer.vx = 100;
                 window.dummyPlayer.draw(ctx);
                 
                 if(!window.dummyEnemies) {
@@ -665,7 +741,6 @@
                         new Enemy(0, floor, 'fly')
                     ];
                 }
-                // Dibujar fila de enemigos detrás
                 window.dummyEnemies.forEach((e, i) => {
                     e.x = (cw/2 - 50) - (i * 100);
                     e.y = e.type === 'fly' ? floor - 90 - e.h : floor - e.h;
@@ -673,7 +748,6 @@
                     e.draw(ctx);
                 });
                 
-                // Oscurecer ligeramente para resaltar el texto principal
                 ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,cw,ch);
                 
                 ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
@@ -707,12 +781,17 @@
         function gameLoop(time) {
             requestAnimationFrame(gameLoop);
             
-            // FIX: Refuerzo robusto del cálculo de tiempo (delta time)
             let now = performance.now();
             let dt = (now - state.lastTime) / 1000; 
-            if (dt < 0) dt = 0; // Evita deltas negativos que rompen las físicas y te lanzan fuera del mapa
-            if (dt > 0.05) dt = 0.05; // CORRECCIÓN: Bajado de 0.1 a 0.05 para evitar "tunneling" atravesando bloques
+            if (dt < 0) dt = 0; 
+            if (dt > 0.05) dt = 0.05; 
             state.lastTime = now;
+            
+            // NUEVO: Manejo del Hit-Stop (Pausa de impacto)
+            if (hitStopTimer > 0) {
+                hitStopTimer -= dt;
+                return; // Congela la lógica de movimiento y físicas durante el impacto
+            }
             
             if (AudioEngine.active) AudioEngine.schedule();
             if (state.current === GAME_STATES.MENU || state.current === GAME_STATES.GAMEOVER) { drawFullScreenUI(dt); return; }
