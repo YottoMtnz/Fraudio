@@ -102,7 +102,7 @@
         const AudioEngine = {
             ctx: null, masterGain: null, active: false, nextNoteTime: 0, currentNoteIndex: 0, activeMelodyIndex: 0,
             melodies: [
-                [ // Melodía ampliada
+                [ 
                     {n: F.E5, d: 0.125}, {n: F.E5, d: 0.25}, {n: F.E5, d: 0.25}, {n: F.C5, d: 0.125}, {n: F.E5, d: 0.25}, {n: F.G5, d: 0.5}, {n: F.G4, d: 0.5},
                     {n: F.C5, d: 0.375}, {n: F.G4, d: 0.375}, {n: F.E4, d: 0.375}, {n: F.A4, d: 0.25}, {n: F.B4, d: 0.25}, {n: F.A4, d: 0.25}, {n: F.G4, d: 0.25},
                     {n: F.E5, d: 0.25}, {n: F.G5, d: 0.25}, {n: F.A5, d: 0.25}, {n: F.F5, d: 0.125}, {n: F.G5, d: 0.25}, {n: F.E5, d: 0.25}, {n: F.C5, d: 0.125}, {n: F.D5, d: 0.125}, {n: F.B4, d: 0.375},
@@ -129,7 +129,6 @@
                     let tempo = isSat ? 160 : 130;
                     let note = arr[this.currentNoteIndex % arr.length];
                     let dur = (60 / tempo) * note.d * 4;
-                    // Cambio a SINE y TRIANGLE para suavizar el sonido
                     this.playNote(note.n, this.nextNoteTime, dur, isSat ? 'triangle' : 'sine'); 
                     this.nextNoteTime += dur; this.currentNoteIndex++;
                 }
@@ -191,12 +190,17 @@
                 if(Math.abs(this.vx) < 5) this.vx = 0;
 
                 this.x += this.vx * dt;
+                
+                // FIX: Prevención de enganches en uniones (Seam Snagging)
                 for(let b of blocks) {
                     if(AABB(this, b)) {
-                        if(this.vx > 0) this.x = b.x - this.w; else if (this.vx < 0) this.x = b.x + b.w;
-                        this.vx = 0;
+                        if (this.y + this.h - (this.vy * dt) > b.y + 4) {
+                            if(this.vx > 0) this.x = b.x - this.w; else if (this.vx < 0) this.x = b.x + b.w;
+                            this.vx = 0;
+                        }
                     }
                 }
+                
                 this.vy += PHYS.GRAVITY * dt;
                 if(this.vy > PHYS.MAX_FALL) this.vy = PHYS.MAX_FALL;
 
@@ -350,7 +354,6 @@
         }
 
         class Enemy {
-            // Tipos de enemigo: 'walk', 'fly', 'shoot', 'jump'
             constructor(x, y, type = 'walk') {
                 this.w = 30; this.h = 30; this.x = x; this.type = type;
                 this.startY = y - this.h; this.y = this.startY;
@@ -411,7 +414,12 @@
             draw(ctx) {
                 if(this.dead) return;
                 ctx.save(); ctx.translate(this.x + this.w/2, this.y + this.h);
-                let dir = (player.x < this.x) ? 1 : -1; if((this.type==='walk' || this.type==='jump' || this.type==='fly') && this.vx > 0) dir = -1;
+                
+                // FIX: Prevención de error cuando player es null (en el menú principal)
+                let pX = player ? player.x : (this.x - 100);
+                let dir = (pX < this.x) ? 1 : -1; 
+                
+                if((this.type==='walk' || this.type==='jump' || this.type==='fly') && this.vx > 0) dir = -1;
                 ctx.scale(dir, 1); ctx.rotate(Math.sin(this.animTimer) * 0.15);
                 let bodyCol = this.type === 'shoot' ? WC[state.world].eR : WC[state.world].eM;
                 
@@ -496,6 +504,9 @@
             weatherParticles = []; for(let i=0; i<60; i++) weatherParticles.push(new WeatherParticle());
         }
 
+        // PRE-INICIALIZACIÓN para que el menú principal tenga un fondo renderizado
+        buildParallax();
+
         function drawParallax(camX) {
             let wC = WC[state.world];
             let grd = ctx.createLinearGradient(0,0,0,ch); grd.addColorStop(0, wC.sT); grd.addColorStop(1, wC.sB);
@@ -514,7 +525,6 @@
             let oldForm = 'small', oldSat = 0; if(keepState && player) { oldForm = player.form; oldSat = player.satelliteTimer; }
             blocks = []; enemies = []; projectiles = []; items = []; particles = []; texts = []; 
             
-            // PISO AÚN MÁS ALTO (de 160 a 220)
             state.floorY = ch - 180; 
             let curX = 0;
             
@@ -546,7 +556,6 @@
                     }
                 }
                 
-                // GENERACIÓN DE NUEVOS ENEMIGOS SEGÚN EL NIVEL
                 if(Math.random() < 0.1 + (state.world*0.015)) {
                     let type = 'walk';
                     let r = Math.random();
@@ -573,7 +582,6 @@
         function winLevel() {
             if(state.current === GAME_STATES.WIN || state.current === GAME_STATES.ENDING) return;
             state.score += 1000 * state.world;
-            // Sumar puntos extra por tiempo sobrante
             state.score += Math.floor(state.time) * 10;
             
             [F.C5, F.E5, F.G5, F.C6, F.C6].forEach((f,i)=>setTimeout(()=>AudioEngine.playSFX(f, 'sine', 0.15, 0.2), i*120));
@@ -587,7 +595,7 @@
             if (reason === 'menu' || reason === 'gameover') { state.lives = 3; state.score = 0; state.world = 1; player = null; } 
             else if (reason === 'next') { state.world++; keepState = true; } 
             
-            state.time = 150; // Reinicia el tiempo
+            state.time = 150; 
             AudioEngine.activeMelodyIndex = 0; 
             generateLevel(keepState);
             state.camX = player.x - cw/3; state.current = GAME_STATES.PLAYING; state.lastTime = performance.now();
@@ -601,9 +609,8 @@
             ctx.textAlign = 'left'; ctx.fillText(`❤️ ${state.lives}   🪙 ${state.score}`, 30, 40); 
             ctx.textAlign = 'right'; ctx.fillText(`MUNDO ${state.world}`, cw-30, 40);
             
-            // INTERFAZ DE TIEMPO
             ctx.textAlign = 'center'; 
-            if(state.time <= 30) ctx.fillStyle = '#ff4757'; // Se pone rojo si queda poco tiempo
+            if(state.time <= 30) ctx.fillStyle = '#ff4757'; 
             ctx.fillText(`⏱️ ${Math.max(0, Math.ceil(state.time))}`, cw/2, 100);
 
             ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
@@ -619,28 +626,86 @@
             }
         }
 
-        function drawFullScreenUI() {
-            ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
-            state.menuTimer += 0.05; let bounce = Math.sin(state.menuTimer) * 10;
-            ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
+        // FIX: Integración de la escena "Attract Mode" para el menú principal
+        function drawFullScreenUI(dt) {
+            state.menuTimer += dt || 0.05; 
+            let bounce = Math.sin(state.menuTimer * 3) * 10;
             
             if(state.current === GAME_STATES.MENU) {
-                ctx.fillStyle = '#ff4757'; ctx.fillText("FRAUDIO", cw/2, ch/3 + bounce); ctx.fillStyle = '#f1c40f'; ctx.fillText("BROTHERS", cw/2, ch/3 + 80 + bounce);
-                if(Math.floor(state.menuTimer) % 2 === 0) { ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; ctx.fillText("TOCA LA PANTALLA PARA EMPEZAR", cw/2, ch*0.7); }
+                // Dibujar fondo parallax animado simulando movimiento
+                let camX = state.menuTimer * 150;
+                drawParallax(camX);
+                
+                // Dibujar suelo estático decorativo
+                let floor = ch - 180;
+                ctx.fillStyle = WC[1].gM; ctx.fillRect(0, floor, cw, ch - floor);
+                ctx.fillStyle = WC[1].gT; ctx.fillRect(0, floor, cw, 12);
+                
+                // Generar e instanciar los actores virtuales solo una vez
+                if(!window.dummyPlayer) { window.dummyPlayer = new Player(cw/2, floor - 40); }
+                window.dummyPlayer.x = cw/2 + 50; window.dummyPlayer.y = floor - 40;
+                window.dummyPlayer.animTimer = state.menuTimer * 10;
+                window.dummyPlayer.onGround = true; window.dummyPlayer.vx = 100; // Forzamos animación de carrera
+                window.dummyPlayer.draw(ctx);
+                
+                if(!window.dummyEnemies) {
+                    window.dummyEnemies = [
+                        new Enemy(0, floor, 'walk'),
+                        new Enemy(0, floor, 'jump'),
+                        new Enemy(0, floor, 'fly')
+                    ];
+                }
+                // Dibujar fila de enemigos detrás
+                window.dummyEnemies.forEach((e, i) => {
+                    e.x = (cw/2 - 50) - (i * 100);
+                    e.y = e.type === 'fly' ? floor - 90 - e.h : floor - e.h;
+                    e.animTimer = state.menuTimer * 5; e.vx = 100;
+                    e.draw(ctx);
+                });
+                
+                // Oscurecer ligeramente para resaltar el texto principal
+                ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,cw,ch);
+                
+                ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
+                ctx.shadowColor = '#000'; ctx.shadowBlur = 10; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 3;
+                ctx.fillStyle = '#ff4757'; ctx.fillText("FRAUDIO", cw/2, ch/3 + bounce); 
+                ctx.fillStyle = '#f1c40f'; ctx.fillText("BROTHERS", cw/2, ch/3 + 80 + bounce);
+                
+                if(Math.floor(state.menuTimer * 2) % 2 === 0) { 
+                    ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; 
+                    ctx.fillText("TOCA LA PANTALLA PARA EMPEZAR", cw/2, ch*0.7); 
+                }
+                ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
+
             } else if (state.current === GAME_STATES.GAMEOVER) {
+                ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
+                ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
                 ctx.fillStyle = '#ff4757'; ctx.fillText("GAME OVER", cw/2, ch/2 + bounce);
-                if(Math.floor(state.menuTimer) % 2 === 0) { ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; ctx.fillText("TOCA PARA REINTENTAR", cw/2, ch*0.7); }
+                if(Math.floor(state.menuTimer) % 2 === 0) { 
+                    ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; 
+                    ctx.fillText("TOCA PARA REINTENTAR", cw/2, ch*0.7); 
+                }
             } else if (state.current === GAME_STATES.WIN) {
+                ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
                 drawParallax(state.camX); ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,cw,ch);
-                ctx.fillStyle = '#2ecc71'; ctx.fillText("¡NIVEL", cw/2, ch/3 + bounce); ctx.fillText("COMPLETADO!", cw/2, ch/3 + 80 + bounce);
+                ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
+                ctx.fillStyle = '#2ecc71'; ctx.fillText("¡NIVEL", cw/2, ch/3 + bounce); 
+                ctx.fillText("COMPLETADO!", cw/2, ch/3 + 80 + bounce);
             }
         }
 
         function gameLoop(time) {
             requestAnimationFrame(gameLoop);
-            let dt = (time - state.lastTime) / 1000; if (dt > 0.1) dt = 0.1; state.lastTime = time;
+            
+            // FIX: Refuerzo robusto del cálculo de tiempo (delta time)
+            let now = performance.now();
+            let dt = (now - state.lastTime) / 1000; 
+            if (dt < 0) dt = 0; // Evita deltas negativos que rompen las físicas y te lanzan fuera del mapa
+            if (dt > 0.1) dt = 0.1; 
+            state.lastTime = now;
+            
             if (AudioEngine.active) AudioEngine.schedule();
-            if (state.current === GAME_STATES.MENU || state.current === GAME_STATES.GAMEOVER) { drawFullScreenUI(); return; }
+            if (state.current === GAME_STATES.MENU || state.current === GAME_STATES.GAMEOVER) { drawFullScreenUI(dt); return; }
 
             if (state.current === GAME_STATES.ENDING) {
                 state.menuTimer += dt;
@@ -650,8 +715,6 @@
                 }
             } else if(state.current !== GAME_STATES.WIN) {
                 player.update(dt);
-                
-                // SISTEMA DE TIEMPO
                 if (state.current === GAME_STATES.PLAYING) {
                     state.time -= dt;
                     if (state.time <= 0) die();
@@ -708,7 +771,7 @@
                 ctx.shadowBlur = 0;
             }
             else if(state.current === GAME_STATES.PLAYING || state.current === GAME_STATES.DEAD) drawUI();
-            else if (state.current === GAME_STATES.WIN) drawFullScreenUI();
+            else if (state.current === GAME_STATES.WIN) drawFullScreenUI(dt);
         }
         requestAnimationFrame(gameLoop);
     </script>
