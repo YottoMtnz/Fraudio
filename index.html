@@ -24,7 +24,14 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d', { alpha: false });
         let cw, ch;
-        function resize() { cw = window.innerWidth; ch = window.innerHeight; canvas.width = cw; canvas.height = ch; updateBtnPositions(); }
+        function resize() { 
+            cw = window.innerWidth; 
+            ch = window.innerHeight; 
+            canvas.width = cw; 
+            canvas.height = ch; 
+            state.floorY = ch - 180; // Asegura que el piso exista desde el menú
+            updateBtnPositions(); 
+        }
         window.addEventListener('resize', resize); 
 
         const TILE = 45; const LEVEL_LENGTH = 300; 
@@ -460,7 +467,7 @@
             update(dt) { if(this.bumpY < 0) { this.bumpY += 100 * dt; if(this.bumpY > 0) this.bumpY = 0; } }
             draw(ctx) {
                 ctx.save(); ctx.translate(this.x, this.y + this.bumpY);
-                if(this.type === 'ground') {
+                if(this.type === 'ground' || this.type === 'underground') {
                     let wC = WC[state.world];
                     ctx.fillStyle = wC.gM; ctx.fillRect(0, 0, this.w, this.h);
                     ctx.strokeStyle = wC.gB; ctx.lineWidth = 2; ctx.beginPath();
@@ -471,9 +478,11 @@
                         for(let bx = offset; bx <= this.w; bx += 30) { ctx.moveTo(bx, by); ctx.lineTo(bx, by + stepY); }
                     }
                     ctx.stroke();
-                    ctx.fillStyle = wC.gT; ctx.fillRect(0, 0, this.w, 12);
-                    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, 12, this.w, 4);
-                    ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(0, 0, this.w, 3);
+                    if(this.type === 'ground') {
+                        ctx.fillStyle = wC.gT; ctx.fillRect(0, 0, this.w, 12);
+                        ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, 12, this.w, 4);
+                        ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(0, 0, this.w, 3);
+                    }
                 } else if(this.type === 'brick') {
                     ctx.fillStyle = '#c0392b'; ctx.fillRect(0, 0, this.w, this.h); ctx.strokeStyle = '#922b21'; ctx.lineWidth = 2; ctx.beginPath();
                     ctx.moveTo(0, this.h/2); ctx.lineTo(this.w, this.h/2); ctx.moveTo(this.w/2, 0); ctx.lineTo(this.w/2, this.h/2);
@@ -498,14 +507,41 @@
             update(dt) {
                 if(this.collected) return;
                 if(this.type === 'coin') { this.y += this.vy * dt; this.vy += 900 * dt; this.life -= dt * 2.0; return; }
-                this.vy += PHYS.GRAVITY * dt; this.x += this.vx * dt;
+                
+                this.vy += PHYS.GRAVITY * dt;
+                if(this.vy > PHYS.MAX_FALL) this.vy = PHYS.MAX_FALL;
+
+                // X movement
+                this.x += this.vx * dt;
                 for(let b of blocks) {
                     if(AABB(this, b)) {
-                        if(this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 10) { this.y = b.y - this.h; this.vy = 0; this.vx *= 0.98; } 
-                        else { this.x -= this.vx * dt; this.vx *= -1; }
+                        // Solo rebotamos horizontalmente si vamos hacia abajo o recto para poder salir de los bloques al crearse
+                        if (this.vy >= 0) {
+                            this.x -= this.vx * dt;
+                            this.vx *= -1;
+                            break;
+                        }
                     }
                 }
+
+                // Y movement
                 this.y += this.vy * dt;
+                let onGround = false;
+                for(let b of blocks) {
+                    if(AABB(this, b)) {
+                        // Solo nos quedamos quietos sobre el bloque si estabamos cayendo sobre él
+                        if(this.vy > 0 && this.y + this.h - this.vy*dt <= b.y + 25) { 
+                            this.y = b.y - this.h; 
+                            this.vy = 0; 
+                            onGround = true;
+                        }
+                    }
+                }
+                
+                if (onGround) {
+                    this.vx *= 0.98; // fricción
+                }
+
                 if(AABB(this, player)) {
                     this.collected = true; this.life = 0;
                     if(this.type === 'telephone') {
@@ -733,13 +769,20 @@
             let grd = ctx.createLinearGradient(0,0,0,ch); grd.addColorStop(0, wC.sT); grd.addColorStop(1, wC.sB);
             ctx.fillStyle = grd; ctx.fillRect(0,0,cw,ch);
             
+            // --- NUEVO: FONDO NEGRO PARA LOS VACÍOS ---
+            // Dibujamos un bloque oscuro debajo del suelo base para que se vea por las aperturas
+            ctx.fillStyle = '#080808'; 
+            ctx.fillRect(0, state.floorY, cw, ch - state.floorY);
+            // ------------------------------------------
+
             let celX = cw*0.8 - camX*0.02;
             if(state.world===1||state.world===2||state.world===5) { ctx.fillStyle='#f1c40f'; ctx.beginPath(); ctx.arc(celX, ch*0.2, 50, 0, Math.PI*2); ctx.fill(); }
             if(state.world===3||state.world===6) { ctx.fillStyle='#ecf0f1'; ctx.beginPath(); ctx.arc(celX, ch*0.2, 40, 0, Math.PI*2); ctx.fill(); ctx.fillStyle=wC.sT; ctx.beginPath(); ctx.arc(celX-10, ch*0.2-10, 35, 0, Math.PI*2); ctx.fill(); }
 
-            ctx.fillStyle = wC.m; for(let d of decors.layer2) { let px = (d.x - camX * 0.1); if(px > -d.w && px < cw) { ctx.beginPath(); ctx.moveTo(px, ch); ctx.lineTo(px+d.w/2, ch-d.h); ctx.lineTo(px+d.w, ch); ctx.fill(); } }
-            ctx.fillStyle = wC.h; for(let d of decors.layer3) { let px = (d.x - camX * 0.3); if(px > -d.r && px < cw+d.r) { ctx.beginPath(); ctx.arc(px, ch, d.r, Math.PI, 0); ctx.fill(); } }
-            ctx.fillStyle = wC.b; for(let d of decors.layer4) { let px = (d.x - camX * 0.6); if(px > -d.r && px < cw+d.r) { ctx.beginPath(); ctx.arc(px, state.floorY+TILE, d.r, Math.PI, 0); ctx.fill(); } }
+            // Se asienta la decoración en state.floorY para que no se superponga bajo el suelo
+            ctx.fillStyle = wC.m; for(let d of decors.layer2) { let px = (d.x - camX * 0.1); if(px > -d.w && px < cw) { ctx.beginPath(); ctx.moveTo(px, state.floorY); ctx.lineTo(px+d.w/2, state.floorY-d.h); ctx.lineTo(px+d.w, state.floorY); ctx.fill(); } }
+            ctx.fillStyle = wC.h; for(let d of decors.layer3) { let px = (d.x - camX * 0.3); if(px > -d.r && px < cw+d.r) { ctx.beginPath(); ctx.arc(px, state.floorY, d.r, Math.PI, 0); ctx.fill(); } }
+            ctx.fillStyle = wC.b; for(let d of decors.layer4) { let px = (d.x - camX * 0.6); if(px > -d.r && px < cw+d.r) { ctx.beginPath(); ctx.arc(px, state.floorY, d.r, Math.PI, 0); ctx.fill(); } }
         }
 
         function generateLevel(keepState) {
@@ -755,7 +798,12 @@
                 blocks.push(new Block(-TILE, state.floorY - (h * TILE) + TILE, 'empty'));
             }
             
-            for(let i=0; i<15; i++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; }
+            // Creación profunda del piso inicial
+            for(let i=0; i<15; i++) { 
+                for(let d=0; d<6; d++) blocks.push(new Block(curX, state.floorY + d*TILE, d === 0 ? 'ground' : 'underground'));
+                curX += TILE; 
+            }
+            
             player = new Player(150, state.floorY - 50); player.setSize(oldForm); player.satelliteTimer = oldSat; player.hasTorch = oldTorch; player.godMode = oldGodMode;
             
             let phone1 = Math.floor(LEVEL_LENGTH * 0.3), phone2 = Math.floor(LEVEL_LENGTH * 0.7);
@@ -771,11 +819,15 @@
             for(let i=15; i<LEVEL_LENGTH; i++) {
                 if(Math.random() < 0.1 && i !== heartPos && i !== torchPos) {
                     let gap = Math.floor(Math.random()*2) + 1; curX += TILE * gap; i += gap;
-                    for(let j=0; j<5; j++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; i++; }
+                    for(let j=0; j<5; j++) { 
+                        for(let d=0; d<6; d++) blocks.push(new Block(curX, state.floorY + d*TILE, d === 0 ? 'ground' : 'underground'));
+                        curX += TILE; i++; 
+                    }
                     continue;
                 }
                 
-                blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground'));
+                // Relleno principal del piso en el recorrido
+                for(let d=0; d<6; d++) blocks.push(new Block(curX, state.floorY + d*TILE, d === 0 ? 'ground' : 'underground'));
                 
                 if (i === heartPos) {
                     blocks.push(new Block(curX, state.floorY - TILE*3, 'question', 'heart'));
@@ -804,7 +856,13 @@
                 }
                 curX += TILE;
             }
-            for(let i=0; i<20; i++) { blocks.push(new Block(curX, state.floorY, 'ground')); blocks.push(new Block(curX, state.floorY+TILE, 'ground')); curX += TILE; }
+            
+            // Piso final profundo
+            for(let i=0; i<20; i++) { 
+                for(let d=0; d<6; d++) blocks.push(new Block(curX, state.floorY + d*TILE, d === 0 ? 'ground' : 'underground'));
+                curX += TILE; 
+            }
+            
             goal = { x: curX - TILE*10, y: state.floorY - TILE*6, w: TILE, h: TILE*6 }; buildParallax();
         }
 
@@ -1105,4 +1163,3 @@
     </script>
 </body>
 </html>
-
