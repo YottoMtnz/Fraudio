@@ -1,44 +1,41 @@
-# 🍄 Fraudio Brothers
+# Fraudio
 
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
-![JavaScript](https://img.shields.io/badge/JavaScript-323330?style=for-the-badge&logo=javascript&logoColor=F7DF1E)
-![Canvas](https://img.shields.io/badge/Canvas_API-000000?style=for-the-badge&logo=html5&logoColor=white)
+**Fraudio** is a fast-paced, action-packed HTML5 Canvas platformer. Run, jump, and fight your way through beautiful environments, overcome increasingly difficult enemies, and collect exciting power-ups on your quest to beat all the levels! 
 
-**Fraudio Brothers** is a classic-style 2D platformer developed entirely in Vanilla JavaScript and HTML5 Canvas. Designed with precise console-like mechanics and a retro aesthetic, the game offers a journey through 8 thematic worlds. 
+## 🌟 Features
 
-This project was created with accessibility in mind for players of all ages (especially for kids), offering responsive touch controls and procedural audio generation, without relying on any external media files.
-
----
-
-## ✨ Key Features
-
-* **Advanced Platforming Physics:** 
-  * **Coyote Time (150ms):** Allows jumping right after leaving a platform's edge, preventing unfair falls.
-  * **Jump Buffer (150ms):** Registers jump inputs just before touching the ground to chain perfect jumps.
-  * **Short Hop:** Variable jump height depending on how long the jump button is held.
-* **Synthesized Audio Engine:** All music (randomized background melodies) and sound effects (jumps, coins, power-ups, damage) are generated in real-time using the **Web Audio API**. Zero external `.mp3` or `.wav` files are used.
-* **8 Thematic Worlds:** Progressive level generation with color variations, floating platforms, pits, and different types of enemies (walkers, jumpers, flyers, and shooters).
-* **Dynamic Power-Ups:** Particle systems, temporary invulnerability, and a "Satellite" mode that alters the music and color palette in real-time.
-* **Responsive Design & Hybrid Controls:** Full keyboard support on desktop and multi-touch overlay virtual buttons that adapt to screen size on mobile devices.
-
----
+- **📱 Mobile-Friendly:** Designed with touch screens in mind. Fully responsive virtual buttons ensure smooth gameplay on mobile devices alongside standard keyboard support for desktop users.
+- **🌍 8 Unique Worlds:** Explore diverse, procedurally generated environments ranging from Green Meadows and Active Volcanoes to the Dark Forest and the Deep Abyss.
+- **✨ Dynamic Graphics:** Custom drawing mechanics built directly into the Canvas API, featuring dynamic parallax backgrounds, particle systems, and weather effects.
+- **🍄 Power-Ups:** Break mystery blocks to find Telephones (grow bigger and gain a temporary "satellite" aura) and Torches (shoot fireballs at enemies).
+- **🕵️ Secret Cheats:** Find hidden Easter Eggs to unlock Invincibility/God Mode or instantly win the level.
+- **🎉 Level Completion Fireworks:** Celebrate every victory with an explosive, colorful particle display when you reach the flag!
 
 ## 🎮 Controls
 
-| Action | Keyboard (Desktop) | Touch (Mobile) |
-| :--- | :--- | :--- |
-| **Move Left** | `Left Arrow` / `A` | On-screen ◄ button |
-| **Move Right** | `Right Arrow` / `D` | On-screen ► button |
-| **Jump** | `Up Arrow` / `W` / `Space` | On-screen ▲ button |
+### Desktop (Keyboard)
+- **Move Left/Right:** `Arrow Keys` or `A` / `D`
+- **Jump:** `Up Arrow`, `W`, or `Spacebar`
+- **Shoot (Requires Torch):** `Shift` or `X`
 
-*(Note: Tapping anywhere on the screen while in the menus will start the game or advance to the next screen).*
+### Mobile (Touch)
+- Use the **on-screen virtual joystick/buttons** located at the bottom corners of the screen to move, jump, and shoot.
 
----
+## 🚀 How to Play
 
-## 🚀 Installation & Usage
+1. **Start the Game:** Tap or click the screen to begin.
+2. **Avoid/Defeat Enemies:** Jump on top of standard enemies to defeat them, or shoot them if you have the Torch power-up. Watch out for jumping, flying, and projectile-shooting variations!
+3. **Collect Coins:** Break bricks and question mark blocks to boost your score.
+4. **Reach the Flag:** Get to the flag at the end of the level before the timer runs out to progress to the next world.
+5. **Stay Alive:** You have 5 lives. If you run out of lives or the timer hits zero, it's Game Over!
 
-Being built purely in HTML5 and JS, this game requires no Node.js dependencies, Webpack, or complex servers for basic development and execution.
+## 🛠️ Built With
+- **HTML5 Canvas** (No external game engines used)
+- **Vanilla JavaScript** (ES6)
+- **Web Audio API** (Procedurally generated sound effects and 8-bit melodies)
 
-1. Clone this repository:
-   ```bash
-   git clone [https://github.com/your-username/fraudio-brothers.git](https://github.com/your-username/fraudio-brothers.git)
+## 👨‍💻 Credits
+
+Created and designed by **Fraudy Martinez**. 
+
+Enjoy the game, and watch out for those bottomless pits!
