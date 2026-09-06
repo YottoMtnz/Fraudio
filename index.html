@@ -31,7 +31,8 @@
         const PHYS = { GRAVITY: 2400, MAX_FALL: 950, ACCEL: 3000, FRICTION: 0.00001, MAX_SPEED: 350, MAX_SPEED_SAT: 500, JUMP_FORCE: -850, BOUNCE_FORCE: -600 };
         const GAME_STATES = { MENU: 0, PLAYING: 1, DEAD: 2, WIN: 3, GAMEOVER: 4, ENDING: 5 };
         
-        let state = { current: GAME_STATES.MENU, lives: 3, score: 0, world: 1, camX: 0, floorY: 0, lastTime: performance.now(), menuTimer: 0, time: 150 };
+        // CORRECCIÓN: Arrancar siempre con 5 vidas
+        let state = { current: GAME_STATES.MENU, lives: 5, score: 0, world: 1, camX: 0, floorY: 0, lastTime: performance.now(), menuTimer: 0, time: 150 };
         let player = null;
         let blocks = [], enemies = [], projectiles = [], items = [], particles = [], texts = [], weatherParticles = [];
         let decors = { layer2: [], layer3: [], layer4: [] };
@@ -83,7 +84,9 @@
             for(let i=0; i<e.touches.length; i++) checkSecretCheat(e.touches[i].clientX - rect.left, e.touches[i].clientY - rect.top);
         }, {passive: false});
 
+        // MEJORA: Añadido tryInitGame() aquí para que los clics de ratón en PC también activen el juego y el audio
         canvas.addEventListener('mousedown', (e) => {
+            tryInitGame();
             let rect = canvas.getBoundingClientRect(); checkSecretCheat(e.clientX - rect.left, e.clientY - rect.top);
         });
 
@@ -572,11 +575,17 @@
             goal = { x: curX - TILE*10, y: state.floorY - TILE*6, w: TILE, h: TILE*6 }; buildParallax();
         }
 
+        // CORRECCIÓN: Evitar el bug de teletransporte (Race Condition del timeout)
         function die() {
             if(state.current === GAME_STATES.DEAD || state.current === GAME_STATES.GAMEOVER) return;
             AudioEngine.die(); player.vy = PHYS.JUMP_FORCE; state.lives--;
             state.current = state.lives <= 0 ? GAME_STATES.GAMEOVER : GAME_STATES.DEAD;
-            setTimeout(() => { if(state.lives > 0) resetGame('death'); }, 3000);
+            
+            setTimeout(() => { 
+                // Solo ejecutar si TODAVIA estamos en estado DEAD,
+                // si el jugador reinició a mano desde la pantalla Game Over, será PLAYING y esto se ignora.
+                if(state.current === GAME_STATES.DEAD) resetGame('death'); 
+            }, 3000);
         }
 
         function winLevel() {
@@ -590,9 +599,10 @@
             else { state.current = GAME_STATES.WIN; setTimeout(() => { resetGame('next'); }, 3000); }
         }
 
+        // CORRECCIÓN: Asegurarnos de que el botón de menú y game over vuelva a dar las 5 vidas completas.
         function resetGame(reason) {
             let keepState = false;
-            if (reason === 'menu' || reason === 'gameover') { state.lives = 3; state.score = 0; state.world = 1; player = null; } 
+            if (reason === 'menu' || reason === 'gameover') { state.lives = 5; state.score = 0; state.world = 1; player = null; } 
             else if (reason === 'next') { state.world++; keepState = true; } 
             
             state.time = 150; 
@@ -701,7 +711,7 @@
             let now = performance.now();
             let dt = (now - state.lastTime) / 1000; 
             if (dt < 0) dt = 0; // Evita deltas negativos que rompen las físicas y te lanzan fuera del mapa
-            if (dt > 0.1) dt = 0.1; 
+            if (dt > 0.05) dt = 0.05; // CORRECCIÓN: Bajado de 0.1 a 0.05 para evitar "tunneling" atravesando bloques
             state.lastTime = now;
             
             if (AudioEngine.active) AudioEngine.schedule();
