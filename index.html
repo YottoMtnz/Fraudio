@@ -820,7 +820,7 @@
             let heartPos = Math.floor(LEVEL_LENGTH * 0.5); 
             let torchPos = Math.floor(LEVEL_LENGTH * 0.4); 
 
-            let numEnemies = 2 + (state.world * 2); 
+            let numEnemies = (2 + (state.world * 2)) * 2; // MODIFICACIÓN: ENEMIGOS DUPLICADOS
             let enemyPositions = new Set();
             while(enemyPositions.size < numEnemies) {
                 enemyPositions.add(Math.floor(Math.random() * (LEVEL_LENGTH - 40)) + 25);
@@ -892,6 +892,17 @@
             state.score += Math.floor(state.time) * 10;
             
             [F.C5, F.E5, F.G5, F.C6, F.C6].forEach((f,i)=>setTimeout(()=>AudioEngine.playSFX(f, 'sine', 0.15, 0.2), i*120));
+            
+            // MODIFICACIÓN: FUEGOS ARTIFICIALES
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    if (state.current !== GAME_STATES.WIN && state.current !== GAME_STATES.ENDING) return;
+                    let fx = state.camX + cw * 0.2 + Math.random() * (cw * 0.6);
+                    let fy = state.floorY - 100 - Math.random() * (ch * 0.6);
+                    spawnExplosion(fx, fy, `hsl(${Math.random()*360},100%,50%)`, 40);
+                    AudioEngine.playSFX(200 + Math.random()*400, 'triangle', 0.15, 0.1, 50);
+                }, i * 150);
+            }
             
             if (state.world >= 8) { state.current = GAME_STATES.ENDING; state.menuTimer = 0; } 
             else { state.current = GAME_STATES.WIN; setTimeout(() => { resetGame('next'); }, 3000); }
@@ -1017,6 +1028,13 @@
             } else if (state.current === GAME_STATES.WIN) {
                 ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
                 drawParallax(state.camX); ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,cw,ch);
+                
+                // MODIFICACIÓN: RENDERIZAR FUEGOS ARTIFICIALES
+                ctx.save();
+                ctx.translate(-Math.floor(state.camX), 0);
+                particles.forEach(p => p.draw(ctx));
+                ctx.restore();
+                
                 ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
                 ctx.fillStyle = '#2ecc71'; ctx.fillText("¡NIVEL", cw/2, ch/3 + bounce); 
                 ctx.fillText("COMPLETADO!", cw/2, ch/3 + 80 + bounce);
