@@ -110,8 +110,8 @@
             vBtns.right.y = ch - 70; 
             vBtns.jump.y = ch - 70; 
             vBtns.jump.x = cw - 70; 
-            vBtns.shoot.x = vBtns.left.x; 
-            vBtns.shoot.y = vBtns.left.y - 85; 
+            vBtns.shoot.x = vBtns.jump.x; 
+            vBtns.shoot.y = vBtns.jump.y - 100; 
         }
 
         function checkTouches(e) {
@@ -139,10 +139,10 @@
                 if(hitLeft) { keys.left=true; vBtns.left.active=true; }
                 else if(hitRight) { keys.right=true; vBtns.right.active=true; }
 
-                // Se amplía la tolerancia táctil de los demás botones
-                if(Math.hypot(tx-vBtns.jump.x, ty-vBtns.jump.y) < vBtns.jump.r+70) { keys.up=true; vBtns.jump.active=true; }
+                // Tolerancia táctil ajustada para evitar toques fantasma
+                if(Math.hypot(tx-vBtns.jump.x, ty-vBtns.jump.y) < vBtns.jump.r+20) { keys.up=true; vBtns.jump.active=true; }
                 
-                if(player && player.hasTorch && Math.hypot(tx-vBtns.shoot.x, ty-vBtns.shoot.y) < vBtns.shoot.r+70) { keys.shoot=true; vBtns.shoot.active=true; }
+                if(player && player.hasTorch && Math.hypot(tx-vBtns.shoot.x, ty-vBtns.shoot.y) < vBtns.shoot.r+20) { keys.shoot=true; vBtns.shoot.active=true; }
             }
             if (!prevUp && keys.up) keys.jumpPressedThisFrame = true;
             if (!prevShoot && keys.shoot) keys.shootPressedThisFrame = true;
