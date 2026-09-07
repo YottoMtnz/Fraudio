@@ -122,10 +122,27 @@
             
             for(let i=0; i<e.touches.length; i++) {
                 let tx = e.touches[i].clientX - rect.left, ty = e.touches[i].clientY - rect.top;
-                if(Math.hypot(tx-vBtns.left.x, ty-vBtns.left.y)<vBtns.left.r+30) { keys.left=true; vBtns.left.active=true; }
-                if(Math.hypot(tx-vBtns.right.x, ty-vBtns.right.y)<vBtns.right.r+30) { keys.right=true; vBtns.right.active=true; }
-                if(Math.hypot(tx-vBtns.jump.x, ty-vBtns.jump.y)<vBtns.jump.r+30) { keys.up=true; vBtns.jump.active=true; }
-                if(player && player.hasTorch && Math.hypot(tx-vBtns.shoot.x, ty-vBtns.shoot.y)<vBtns.shoot.r+30) { keys.shoot=true; vBtns.shoot.active=true; }
+                
+                let hitLeft = false, hitRight = false;
+                
+                // Zona rectangular amplia para evitar que el dedo resbale y el toque se pierda
+                if (tx < 240 && ty > ch - 160) {
+                    // Dividimos la zona exactamente por el centro para garantizar que nunca se pulsen ambas
+                    if (tx < 110) hitLeft = true;
+                    else hitRight = true;
+                } else {
+                    // Fallback radial si tocan más arriba
+                    if(Math.hypot(tx-vBtns.left.x, ty-vBtns.left.y) < vBtns.left.r+60) hitLeft = true;
+                    if(Math.hypot(tx-vBtns.right.x, ty-vBtns.right.y) < vBtns.right.r+60) hitRight = true;
+                }
+
+                if(hitLeft) { keys.left=true; vBtns.left.active=true; }
+                else if(hitRight) { keys.right=true; vBtns.right.active=true; }
+
+                // Se amplía la tolerancia táctil de los demás botones
+                if(Math.hypot(tx-vBtns.jump.x, ty-vBtns.jump.y) < vBtns.jump.r+70) { keys.up=true; vBtns.jump.active=true; }
+                
+                if(player && player.hasTorch && Math.hypot(tx-vBtns.shoot.x, ty-vBtns.shoot.y) < vBtns.shoot.r+70) { keys.shoot=true; vBtns.shoot.active=true; }
             }
             if (!prevUp && keys.up) keys.jumpPressedThisFrame = true;
             if (!prevShoot && keys.shoot) keys.shootPressedThisFrame = true;
@@ -1370,7 +1387,6 @@
                     if (state.time <= 0) die();
                     
                     if (player.x + player.w >= goal.x + 8) { 
-                        // NUEVO: Hitbox súper generoso para atraparte si saltas alto o te pasas de largo
                         if (player.y + player.h <= goal.y + 150 || player.x >= goal.x) {
                             goal.state = 'top';
                         } else {
