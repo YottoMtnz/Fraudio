@@ -44,9 +44,9 @@
             "CIELO AZUL", "ZONA ABISAL" 
         ];
 
-        let state = { current: GAME_STATES.MENU, lives: 5, score: 0, world: 1, camX: 0, floorY: 0, lastTime: performance.now(), menuTimer: 0, time: 150 };
+        let state = { current: GAME_STATES.MENU, lives: 5, score: 0, world: 1, camX: 0, floorY: 0, lastTime: performance.now(), menuTimer: 0, time: 150, difficulty: 1 };
         let player = null;
-        let blocks = [], enemies = [], projectiles = [], playerProjectiles = [], items = [], particles = [], texts = [], weatherParticles = [];
+        let blocks = [], enemies = [], projectiles = [], playerProjectiles = [], items = [], particles = [], texts = [], weatherParticles = [], meteors = [];
         let decors = { layer2: [], layer3: [], layer4: [] };
         
         let goal = null;
@@ -130,27 +130,67 @@
             if (!prevUp && keys.up) keys.jumpPressedThisFrame = true;
             if (!prevShoot && keys.shoot) keys.shootPressedThisFrame = true;
         }
+
+        function handleMenuClick(tx, ty) {
+            let btnW = Math.min(cw * 0.85, 380);
+            let btnH = 55;
+            let titleY = Math.max(80, ch * 0.25);
+            let startY = titleY + 60;
+            let gap = 65;
+            let btnX = cw/2 - btnW/2;
+            
+            let rects = [
+                {x: btnX, y: startY, w: btnW, h: btnH, diff: 0},
+                {x: btnX, y: startY + gap, w: btnW, h: btnH, diff: 1},
+                {x: btnX, y: startY + gap * 2, w: btnW, h: btnH, diff: 2}
+            ];
+
+            for(let r of rects) {
+                if(tx >= r.x && tx <= r.x + r.w && ty >= r.y && ty <= r.y + r.h) {
+                    state.difficulty = r.diff;
+                    AudioEngine.init();
+                    resetGame('menu');
+                    return true;
+                }
+            }
+            return false;
+        }
         
         resize();
 
         canvas.addEventListener('touchstart', (e) => { 
-            tryInitGame(); checkTouches(e); 
             let rect = canvas.getBoundingClientRect();
+            let isMenu = state.current === GAME_STATES.MENU;
+            let menuHandled = false;
+            
             for(let i=0; i<e.touches.length; i++) {
                 let tx = e.touches[i].clientX - rect.left;
                 let ty = e.touches[i].clientY - rect.top;
-                checkSecretCheat(tx, ty);
-                checkTimerCheat(tx, ty);
+                
+                if (isMenu) {
+                    if (handleMenuClick(tx, ty)) { menuHandled = true; break; }
+                } else {
+                    checkSecretCheat(tx, ty);
+                    checkTimerCheat(tx, ty);
+                }
             }
+            
+            if (menuHandled) { e.preventDefault(); return; }
+            if (!isMenu) { tryInitGame(); checkTouches(e); }
         }, {passive: false});
 
         canvas.addEventListener('mousedown', (e) => {
-            tryInitGame();
             let rect = canvas.getBoundingClientRect(); 
             let tx = e.clientX - rect.left;
             let ty = e.clientY - rect.top;
-            checkSecretCheat(tx, ty);
-            checkTimerCheat(tx, ty);
+            
+            if (state.current === GAME_STATES.MENU) {
+                handleMenuClick(tx, ty);
+            } else {
+                tryInitGame();
+                checkSecretCheat(tx, ty);
+                checkTimerCheat(tx, ty);
+            }
         });
 
         canvas.addEventListener('touchmove', checkTouches, {passive: false});
@@ -158,6 +198,7 @@
         canvas.addEventListener('touchcancel', checkTouches, {passive: false});
         
         window.addEventListener('keydown', e => { 
+            if(state.current === GAME_STATES.MENU) return;
             if(e.code==='ArrowLeft'||e.code==='KeyA') keys.left=true; 
             if(e.code==='ArrowRight'||e.code==='KeyD') keys.right=true; 
             if(e.code==='ArrowUp'||e.code==='KeyW'||e.code==='Space'){
@@ -182,7 +223,8 @@
 
         function tryInitGame() { 
             AudioEngine.init(); 
-            if(state.current === GAME_STATES.MENU || state.current === GAME_STATES.GAMEOVER || (state.current === GAME_STATES.ENDING && state.menuTimer > 6)) resetGame('menu'); 
+            if (state.current === GAME_STATES.MENU) return; 
+            if(state.current === GAME_STATES.GAMEOVER || (state.current === GAME_STATES.ENDING && state.menuTimer > 6)) resetGame('menu'); 
         }
 
         const F = { C4:261.6, D4:293.7, E4:329.6, F4:349.2, G4:392.0, A4:440.0, B4:493.9, C5:523.3, D5:587.3, E5:659.3, F5:698.5, G5:784.0, A5:880.0, B5:987.8, C6:1046.5, D6:1174.6 };
@@ -256,6 +298,57 @@
         function AABB(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
         function spawnText(txt, x, y, col, size=24) { texts.push(new TextEffect(txt, x, y, col, size)); }
         function spawnExplosion(x, y, col, count) { for(let i=0; i<count; i++) particles.push(new Particle(x, y, col)); }
+
+        class Meteor {
+            constructor() {
+                this.x = state.camX + Math.random() * (cw + 200) - 100;
+                this.y = -100; 
+                this.w = 16; this.h = 16;
+                this.vy = 400 + Math.random() * 200;
+                this.vx = (Math.random() - 0.5) * 150;
+                this.life = 10;
+            }
+            update(dt) {
+                this.x += this.vx * dt;
+                this.y += this.vy * dt;
+                this.life -= dt;
+                
+                if(AABB(this, player)) {
+                    if(player.satelliteTimer > 0 || player.godMode) { 
+                        this.life = 0; spawnExplosion(this.x, this.y, '#fff', 5); 
+                    } else { 
+                        player.damage(); this.life = 0; spawnExplosion(this.x, this.y, '#ff4757', 15);
+                    }
+                }
+                
+                for(let b of blocks) {
+                    if(AABB(this, b)) {
+                        this.life = 0;
+                        spawnExplosion(this.x, this.y, '#ff4757', 15);
+                        if(b.type === 'brick') {
+                            AudioEngine.break(); 
+                            for(let k=0; k<4; k++) particles.push(new BrickParticle(b.x + TILE/2, b.y + TILE/2, (k%2===0?1:-1)*(Math.random()*150+50), -Math.random()*300-200));
+                            blocks.splice(blocks.indexOf(b), 1);
+                        }
+                        break;
+                    }
+                }
+                
+                if (this.y > state.floorY + ch) this.life = 0;
+            }
+            draw(ctx) {
+                if(this.life <= 0) return;
+                ctx.save();
+                ctx.translate(this.x + this.w/2, this.y + this.h/2);
+                ctx.rotate(Math.atan2(this.vy, this.vx) - Math.PI/2); 
+                
+                ctx.fillStyle = '#f39c12'; ctx.beginPath(); ctx.arc(0, -8, 8, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#e74c3c'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#c0392b'; ctx.fillRect(-5, -5, 10, 10);
+                
+                ctx.restore();
+            }
+        }
 
         class Player {
             constructor(x, y) {
@@ -588,9 +681,11 @@
                 this.startY = y - this.h; this.y = this.startY;
                 this.dead = false; this.animTimer = Math.random() * 10; this.vy = 0;
                 
-                if (type === 'shoot') { this.vx = 0; this.shootTimer = Math.random() * 2 + 1; }
-                else if (type === 'fly') { this.vx = -70 - (state.world * 10); }
-                else { this.vx = -80 - (state.world * 15); this.jumpTimer = Math.random() * 3 + 1; }
+                let speedMod = (state.difficulty === 2) ? 1.5 : 1;
+                
+                if (type === 'shoot') { this.vx = 0; this.shootTimer = (Math.random() * 2 + 1) / speedMod; }
+                else if (type === 'fly') { this.vx = (-70 - (state.world * 10)) * speedMod; }
+                else { this.vx = (-80 - (state.world * 15)) * speedMod; this.jumpTimer = (Math.random() * 3 + 1) / speedMod; }
             }
             update(dt) {
                 if(this.dead) return;
@@ -792,7 +887,7 @@
             let oldForm = 'small', oldSat = 0, oldTorch = false, oldGodMode = false; 
             if(keepState && player) { oldForm = player.form; oldSat = player.satelliteTimer; oldTorch = player.hasTorch; oldGodMode = player.godMode; }
             
-            blocks = []; enemies = []; projectiles = []; playerProjectiles = []; items = []; particles = []; texts = []; 
+            blocks = []; enemies = []; projectiles = []; playerProjectiles = []; items = []; particles = []; texts = []; meteors = [];
             
             state.floorY = ch - 180; 
             let curX = 0;
@@ -812,7 +907,8 @@
             let heartPos = Math.floor(LEVEL_LENGTH * 0.5); 
             let torchPos = Math.floor(LEVEL_LENGTH * 0.4); 
 
-            let numEnemies = (2 + (state.world * 2)) * 2; 
+            let mult = state.difficulty === 0 ? 1 : (state.difficulty === 1 ? 2 : 4);
+            let numEnemies = (2 + (state.world * 2)) * mult;
             let enemyPositions = new Set();
             while(enemyPositions.size < numEnemies) {
                 enemyPositions.add(Math.floor(Math.random() * (LEVEL_LENGTH - 40)) + 25);
@@ -969,44 +1065,145 @@
             let bounce = Math.sin(state.menuTimer * 3) * 10;
             
             if(state.current === GAME_STATES.MENU) {
-                let camX = state.menuTimer * 150;
-                drawParallax(camX);
+                // Fondo animado interactivo similar al juego real
+                let pCamX = state.menuTimer * 150;
+                ctx.clearRect(0,0,cw,ch);
                 
+                // Forzamos el render de World 1 temporalmente para el menú
+                let oldWorld = state.world;
+                state.world = 1;
+                drawParallax(pCamX);
+                state.world = oldWorld;
+
                 let floor = ch - 180;
-                ctx.fillStyle = WC[1].gM; ctx.fillRect(0, floor, cw, ch - floor);
-                ctx.fillStyle = WC[1].gT; ctx.fillRect(0, floor, cw, 12);
-                
-                if(!window.dummyPlayer) { window.dummyPlayer = new Player(cw/2, floor - 40); }
-                window.dummyPlayer.x = cw/2 + 50; window.dummyPlayer.y = floor - 40;
-                window.dummyPlayer.animTimer = state.menuTimer * 10;
-                window.dummyPlayer.onGround = true; window.dummyPlayer.vx = 100;
-                window.dummyPlayer.draw(ctx);
-                
-                if(!window.dummyEnemies) {
-                    window.dummyEnemies = [
+                let wC = WC[1]; 
+
+                // Dibujar piso de ladrillos infinito
+                ctx.fillStyle = wC.gM;
+                ctx.fillRect(0, floor, cw, ch - floor);
+
+                ctx.strokeStyle = wC.gB; ctx.lineWidth = 2; ctx.beginPath();
+                let stepY = 15;
+                let floorH = ch - floor;
+                let offsetX = -(pCamX % 30);
+                for(let by = stepY; by < floorH; by += stepY) {
+                    ctx.moveTo(0, floor + by); ctx.lineTo(cw, floor + by);
+                }
+                for(let by = 0; by < floorH; by += stepY) {
+                    let offset = (by % (stepY * 2) === 0) ? 0 : 15;
+                    for(let bx = offsetX + offset - 30; bx <= cw + 30; bx += 30) {
+                        ctx.moveTo(bx, floor + by); ctx.lineTo(bx, floor + by + stepY);
+                    }
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = wC.gT; ctx.fillRect(0, floor, cw, 12);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, floor+12, cw, 4);
+                ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(0, floor, cw, 3);
+
+                // Oscurecemos ligeramente para mejor legibilidad
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(0,0,cw,ch);
+
+                // --- MARIO CORRIENDO (Huyendo de los enemigos) ---
+                if(!window.menuDummyPlayer) {
+                    window.menuDummyPlayer = new Player(0, floor - 40);
+                    window.menuDummyPlayer.setSize('small');
+                    window.menuDummyPlayer.facing = 1; 
+                }
+                window.menuDummyPlayer.x = cw/2 + Math.min(cw*0.25, 120);
+                window.menuDummyPlayer.y = floor - window.menuDummyPlayer.h;
+                window.menuDummyPlayer.animTimer = state.menuTimer * 15;
+                window.menuDummyPlayer.onGround = true; window.menuDummyPlayer.vx = 200;
+                window.menuDummyPlayer.draw(ctx);
+
+                if(!window.menuDummyEnemies) {
+                    window.menuDummyEnemies = [
                         new Enemy(0, floor, 'walk'),
                         new Enemy(0, floor, 'jump'),
+                        new Enemy(0, floor, 'shoot'),
                         new Enemy(0, floor, 'fly')
                     ];
                 }
-                window.dummyEnemies.forEach((e, i) => {
-                    e.x = (cw/2 - 50) - (i * 100);
+                
+                // Enemigos persiguiendo desde la izquierda
+                window.menuDummyEnemies.forEach((e, i) => {
+                    e.x = cw/2 - 20 - (i * 55);
                     e.y = e.type === 'fly' ? floor - 90 - e.h : floor - e.h;
-                    e.animTimer = state.menuTimer * 5; e.vx = 100;
+                    e.animTimer = state.menuTimer * 15;
+                    e.vx = 200; 
                     e.draw(ctx);
                 });
-                
-                ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,cw,ch);
-                
-                ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/6, 90)}px Impact`;
-                ctx.shadowColor = '#000'; ctx.shadowBlur = 10; ctx.shadowOffsetX = 3; ctx.shadowOffsetY = 3;
-                ctx.fillStyle = '#ff4757'; ctx.fillText("FRAUDIO", cw/2, ch/3 + 40 + bounce); 
-                
-                if(Math.floor(state.menuTimer * 2) % 2 === 0) { 
-                    ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; 
-                    ctx.fillText("TOCA LA PANTALLA PARA EMPEZAR", cw/2, ch*0.7); 
+
+                // --- TÍTULO NINTENDERO ---
+                let titleY = Math.max(80, ch * 0.25);
+                ctx.textAlign = 'center';
+                let titleSize = Math.min(cw/5, 90);
+                ctx.font = `900 ${titleSize}px "Arial Black", Impact, sans-serif`;
+
+                ctx.lineWidth = 12;
+                ctx.strokeStyle = '#000000';
+                ctx.strokeText("FRAUDIO", cw/2, titleY + bounce);
+
+                ctx.lineWidth = 6;
+                ctx.strokeStyle = '#FFFFFF';
+                ctx.strokeText("FRAUDIO", cw/2, titleY + bounce);
+
+                ctx.fillStyle = '#E60012'; 
+                ctx.fillText("FRAUDIO", cw/2, titleY + bounce);
+
+
+                // --- BOTONES OBALADOS ---
+                let btnW = Math.min(cw * 0.85, 380);
+                let btnH = 55;
+                let startY = titleY + 60;
+                let gap = 65;
+                let btnX = cw/2 - btnW/2;
+
+                let btnData = [
+                    { text: "MODO RELAJADO (FÁCIL)", bg: '#4cd137', stroke: '#44bd32' },
+                    { text: "EN ESTE VIVES :) (NORMAL)", bg: '#fbc531', stroke: '#e1b12c' },
+                    { text: "EN ESTE NO VIVES :( (DIFÍCIL)", bg: '#e84118', stroke: '#c23616' }
+                ];
+
+                for(let i=0; i<3; i++) {
+                    let by = startY + (i * gap);
+                    let pulse = 1 + Math.sin(state.menuTimer * 4 + i) * 0.02;
+
+                    ctx.save();
+                    ctx.translate(cw/2, by + btnH/2);
+                    ctx.scale(pulse, pulse);
+                    ctx.translate(-cw/2, -(by + btnH/2));
+
+                    // Forma de píldora
+                    ctx.beginPath();
+                    ctx.roundRect(btnX, by, btnW, btnH, btnH/2);
+
+                    ctx.fillStyle = btnData[i].bg;
+                    ctx.fill();
+
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = btnData[i].stroke;
+                    ctx.stroke();
+
+                    // Brillo interior blanco
+                    ctx.beginPath();
+                    ctx.roundRect(btnX + 4, by + 4, btnW - 8, btnH - 8, (btnH - 8)/2);
+                    ctx.lineWidth = 2;
+                    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+                    ctx.stroke();
+
+                    // Texto del botón
+                    ctx.fillStyle = '#ffffff';
+                    let fSize = Math.min(16, cw/25);
+                    ctx.font = `900 ${fSize}px "Arial Black", sans-serif`;
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    ctx.shadowBlur = 4;
+                    ctx.shadowOffsetY = 2;
+
+                    ctx.fillText(btnData[i].text, cw/2, by + btnH/2 + (fSize/3));
+                    ctx.restore();
                 }
-                ctx.shadowBlur = 0; ctx.shadowOffsetX = 0; ctx.shadowOffsetY = 0;
 
             } else if (state.current === GAME_STATES.GAMEOVER) {
                 ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
@@ -1061,6 +1258,10 @@
                 player.update(dt);
                 if (state.current === GAME_STATES.PLAYING) {
                     if (!player.godMode) state.time -= dt;
+                    
+                    if (state.difficulty === 2 && Math.random() < 0.015 + (state.world * 0.005)) {
+                        meteors.push(new Meteor());
+                    }
                     if (state.time <= 0) die();
                 }
             }
@@ -1072,6 +1273,7 @@
             for(let i=enemies.length-1; i>=0; i--) { enemies[i].update(dt); if(enemies[i].dead && Math.random()<0.05) enemies.splice(i,1); }
             for(let i=particles.length-1; i>=0; i--) { particles[i].update(dt); if(particles[i].life<=0) particles.splice(i,1); }
             for(let i=texts.length-1; i>=0; i--) { texts[i].update(dt); if(texts[i].life<=0) texts.splice(i,1); }
+            for(let i=meteors.length-1; i>=0; i--) { meteors[i].update(dt); if(meteors[i].life<=0) meteors.splice(i,1); }
 
             if(state.current === GAME_STATES.PLAYING && player.x > goal.x) winLevel();
             let targetX = player.x - cw * 0.4; if(targetX < 0) targetX = 0; state.camX += (targetX - state.camX) * (1 - Math.pow(0.001, dt));
@@ -1128,6 +1330,7 @@
                 blocks.forEach(b => { if(b.x > viewL && b.x < viewR) b.draw(ctx); }); items.forEach(i => { if(i.x > viewL && i.x < viewR) i.draw(ctx); });
                 enemies.forEach(e => { if(e.x > viewL && e.x < viewR) e.draw(ctx); }); projectiles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); });
                 playerProjectiles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); });
+                meteors.forEach(m => { if(m.x > viewL && m.x < viewR) m.draw(ctx); });
                 player.draw(ctx); particles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); }); texts.forEach(t => { if(t.x > viewL && t.x < viewR) t.draw(ctx); });
             }
             ctx.restore();
