@@ -847,6 +847,73 @@
             }
         }
 
+        class Flagpole {
+            constructor(x, baseY) {
+                this.x = x;
+                this.baseY = baseY;
+                this.h = TILE * 9; 
+                this.y = baseY - this.h;
+                this.w = 16;
+                this.state = 'idle'; 
+                this.animTimer = 0;
+            }
+            update(dt) {
+                if(this.state !== 'idle') this.animTimer += dt * 5; 
+            }
+            draw(ctx) {
+                ctx.save();
+                let poleCenter = this.x + this.w/2;
+                let globalWave = performance.now() / 200;
+                
+                if (this.state === 'crash') {
+                    let angle = Math.sin(this.animTimer * 15) * 0.15 * Math.max(0, (1 - this.animTimer*0.3));
+                    ctx.translate(poleCenter, this.baseY);
+                    ctx.rotate(angle);
+                    ctx.translate(-poleCenter, -this.baseY);
+                }
+                
+                ctx.fillStyle = '#bdc3c7';
+                if (this.state === 'top') {
+                    for(let by = this.y; by <= this.baseY; by += 5) {
+                        let waveX = Math.sin(this.animTimer * 10 + (by * 0.05)) * 10;
+                        ctx.fillRect(this.x + waveX, by, this.w, 6);
+                    }
+                } else {
+                    ctx.fillRect(this.x, this.y, this.w, this.h);
+                }
+
+                let ballX = poleCenter;
+                let ballY = this.y - 12;
+                if (this.state === 'top') ballX += Math.sin(this.animTimer * 10 + (this.y * 0.05)) * 10;
+                
+                let grd = ctx.createRadialGradient(ballX - 5, ballY - 5, 2, ballX, ballY, 18);
+                grd.addColorStop(0, '#f1c40f');
+                grd.addColorStop(1, '#d35400');
+                ctx.fillStyle = grd;
+                ctx.beginPath(); ctx.arc(ballX, ballY, 18, 0, Math.PI*2); ctx.fill();
+
+                let flagX = this.x + this.w;
+                let flagY = this.y + 15;
+                if (this.state === 'top') flagX += Math.sin(this.animTimer * 10 + (flagY * 0.05)) * 10;
+                
+                let fTipY = flagY + 25 + Math.sin(globalWave)*8;
+                ctx.fillStyle = '#2ecc71';
+                ctx.beginPath();
+                ctx.moveTo(flagX, flagY);
+                ctx.lineTo(flagX + 70, fTipY);
+                ctx.lineTo(flagX, flagY + 50);
+                ctx.fill();
+                
+                ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(flagX + 22, flagY + 25, 12, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#e74c3c';
+                ctx.font = 'bold 16px Arial Black'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('F', flagX + 22, flagY + 27);
+                
+                ctx.restore();
+            }
+        }
+
         function buildParallax() {
             decors = { layer2: [], layer3: [], layer4: [] }; const tw = LEVEL_LENGTH * TILE;
             for(let i=0; i<tw; i+=400) decors.layer2.push({x: i + Math.random()*200, w: 300+Math.random()*200, h: 200+Math.random()*150 });
@@ -959,7 +1026,17 @@
                 curX += TILE; 
             }
             
-            goal = { x: curX - TILE*10, y: state.floorY - TILE*6, w: TILE, h: TILE*6 }; buildParallax();
+            goal = new Flagpole(curX - TILE*10, state.floorY); 
+            
+            // NUEVO: ESCALERA CLÁSICA TIPO MARIO
+            let stairStart = goal.x - TILE * 11;
+            for (let col = 0; col < 8; col++) {
+                for (let row = 0; row <= col; row++) {
+                    blocks.push(new Block(stairStart + col * TILE, state.floorY - TILE - row * TILE, 'underground'));
+                }
+            }
+
+            buildParallax();
         }
 
         function die() {
@@ -974,16 +1051,14 @@
 
         function winLevel() {
             if(state.current === GAME_STATES.WIN || state.current === GAME_STATES.ENDING) return;
-            
             state.score += Math.floor(state.time) * 10;
-            
             [F.C5, F.E5, F.G5, F.C6, F.C6].forEach((f,i)=>setTimeout(()=>AudioEngine.playSFX(f, 'sine', 0.15, 0.2), i*120));
             
             for (let i = 0; i < 20; i++) {
                 setTimeout(() => {
                     if (state.current !== GAME_STATES.WIN && state.current !== GAME_STATES.ENDING) return;
-                    let fx = state.camX + cw * 0.2 + Math.random() * (cw * 0.6);
-                    let fy = state.floorY - 100 - Math.random() * (ch * 0.6);
+                    let fx = goal.x + (Math.random() - 0.5) * 500; 
+                    let fy = goal.baseY - 100 - Math.random() * (ch * 0.7);
                     spawnExplosion(fx, fy, `hsl(${Math.random()*360},100%,50%)`, 40);
                     if (state.current !== GAME_STATES.ENDING) {
                         AudioEngine.playSFX(200 + Math.random()*400, 'triangle', 0.15, 0.1, 50);
@@ -991,8 +1066,13 @@
                 }, i * 150);
             }
             
-            if (state.world >= 8) { state.current = GAME_STATES.ENDING; state.menuTimer = 0; } 
-            else { state.current = GAME_STATES.WIN; setTimeout(() => { resetGame('next'); }, 3000); }
+            if (state.world >= 8) { 
+                state.current = GAME_STATES.ENDING; 
+                state.menuTimer = 0; 
+            } else { 
+                state.current = GAME_STATES.WIN; 
+                setTimeout(() => { resetGame('next'); }, 4000); 
+            }
         }
 
         function resetGame(reason) {
@@ -1065,11 +1145,9 @@
             let bounce = Math.sin(state.menuTimer * 3) * 10;
             
             if(state.current === GAME_STATES.MENU) {
-                // Fondo animado interactivo similar al juego real
                 let pCamX = state.menuTimer * 150;
                 ctx.clearRect(0,0,cw,ch);
                 
-                // Forzamos el render de World 1 temporalmente para el menú
                 let oldWorld = state.world;
                 state.world = 1;
                 drawParallax(pCamX);
@@ -1078,7 +1156,6 @@
                 let floor = ch - 180;
                 let wC = WC[1]; 
 
-                // Dibujar piso de ladrillos infinito
                 ctx.fillStyle = wC.gM;
                 ctx.fillRect(0, floor, cw, ch - floor);
 
@@ -1101,11 +1178,9 @@
                 ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, floor+12, cw, 4);
                 ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(0, floor, cw, 3);
 
-                // Oscurecemos ligeramente para mejor legibilidad
                 ctx.fillStyle = 'rgba(0,0,0,0.3)';
                 ctx.fillRect(0,0,cw,ch);
 
-                // --- MARIO CORRIENDO (Huyendo de los enemigos) ---
                 if(!window.menuDummyPlayer) {
                     window.menuDummyPlayer = new Player(0, floor - 40);
                     window.menuDummyPlayer.setSize('small');
@@ -1126,7 +1201,6 @@
                     ];
                 }
                 
-                // Enemigos persiguiendo desde la izquierda
                 window.menuDummyEnemies.forEach((e, i) => {
                     e.x = cw/2 - 20 - (i * 55);
                     e.y = e.type === 'fly' ? floor - 90 - e.h : floor - e.h;
@@ -1135,7 +1209,6 @@
                     e.draw(ctx);
                 });
 
-                // --- TÍTULO NINTENDERO ---
                 let titleY = Math.max(80, ch * 0.25);
                 ctx.textAlign = 'center';
                 let titleSize = Math.min(cw/5, 90);
@@ -1152,8 +1225,6 @@
                 ctx.fillStyle = '#E60012'; 
                 ctx.fillText("FRAUDIO", cw/2, titleY + bounce);
 
-
-                // --- BOTONES OBALADOS ---
                 let btnW = Math.min(cw * 0.85, 380);
                 let btnH = 55;
                 let startY = titleY + 60;
@@ -1175,7 +1246,6 @@
                     ctx.scale(pulse, pulse);
                     ctx.translate(-cw/2, -(by + btnH/2));
 
-                    // Forma de píldora
                     ctx.beginPath();
                     ctx.roundRect(btnX, by, btnW, btnH, btnH/2);
 
@@ -1186,14 +1256,12 @@
                     ctx.strokeStyle = btnData[i].stroke;
                     ctx.stroke();
 
-                    // Brillo interior blanco
                     ctx.beginPath();
                     ctx.roundRect(btnX + 4, by + 4, btnW - 8, btnH - 8, (btnH - 8)/2);
                     ctx.lineWidth = 2;
                     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
                     ctx.stroke();
 
-                    // Texto del botón
                     ctx.fillStyle = '#ffffff';
                     let fSize = Math.min(16, cw/25);
                     ctx.font = `900 ${fSize}px "Arial Black", sans-serif`;
@@ -1213,19 +1281,7 @@
                     ctx.font = `24px Arial Black`; ctx.fillStyle = '#fff'; 
                     ctx.fillText("TOCA PARA REINTENTAR", cw/2, ch*0.7); 
                 }
-            } else if (state.current === GAME_STATES.WIN) {
-                ctx.fillStyle = '#000'; ctx.fillRect(0,0,cw,ch);
-                drawParallax(state.camX); ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(0,0,cw,ch);
-                
-                ctx.save();
-                ctx.translate(-Math.floor(state.camX), 0);
-                particles.forEach(p => p.draw(ctx));
-                ctx.restore();
-                
-                ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(cw/8, 80)}px Impact`;
-                ctx.fillStyle = '#2ecc71'; ctx.fillText("¡NIVEL", cw/2, ch/3 + bounce); 
-                ctx.fillText("COMPLETADO!", cw/2, ch/3 + 80 + bounce);
-            }
+            } 
         }
 
         function gameLoop(time) {
@@ -1254,7 +1310,56 @@
                 if(Math.random() < 0.05) {
                     spawnExplosion(state.camX + cw/2 + (Math.random()-0.5)*cw, Math.random()*(ch/2), `hsl(${Math.random()*360},100%,50%)`, 40);
                 }
-            } else if(state.current !== GAME_STATES.WIN) {
+                
+                if(window.endDummyPlayer) {
+                    window.endDummyFireballTimer -= dt;
+                    if(window.endDummyFireballTimer <= 0) {
+                        window.endDummyFireballTimer = 0.2 + Math.random() * 0.3; 
+                        let fb = { 
+                            x: window.endDummyPlayer.x + 20, 
+                            y: window.endDummyPlayer.y + 20, 
+                            vx: 400 + Math.random()*250, 
+                            vy: -150 - Math.random()*200, 
+                            w: 14, h: 14, life: 2 
+                        };
+                        window.endDummyFireballs.push(fb);
+                    }
+                    for(let i=window.endDummyFireballs.length-1; i>=0; i--) {
+                        let fb = window.endDummyFireballs[i];
+                        fb.vy += PHYS.GRAVITY * dt;
+                        fb.x += fb.vx * dt;
+                        fb.y += fb.vy * dt;
+                        let floorY = ch - 180;
+                        if(fb.y + fb.h > floorY) {
+                            fb.y = floorY - fb.h;
+                            fb.vy = -350;
+                        }
+                        fb.life -= dt;
+                        if(fb.life <= 0) window.endDummyFireballs.splice(i, 1);
+                    }
+                }
+            } else if (state.current === GAME_STATES.WIN) {
+                state.menuTimer += dt;
+                goal.update(dt);
+                if (goal.state === 'crash') {
+                    player.vx = 0; 
+                    player.vy += PHYS.GRAVITY * dt;
+                    player.y += player.vy * dt;
+                    let floorY = ch - 180;
+                    if (player.y + player.h > floorY) {
+                        player.y = floorY - player.h;
+                        player.vy = 0;
+                        player.onGround = true;
+                    }
+                    player.animTimer = 0;
+                    player.x = goal.x - player.w + 4; 
+                } else if (goal.state === 'top') {
+                    player.vx = 0; player.vy = 0;
+                    player.x = goal.x + goal.w/2 - player.w/2 + Math.sin(goal.animTimer * 10 + (goal.y * 0.05)) * 10;
+                    player.y = goal.y - player.h - 26; 
+                    player.animTimer += dt * 8; 
+                }
+            } else {
                 player.update(dt);
                 if (state.current === GAME_STATES.PLAYING) {
                     if (!player.godMode) state.time -= dt;
@@ -1263,6 +1368,17 @@
                         meteors.push(new Meteor());
                     }
                     if (state.time <= 0) die();
+                    
+                    if (player.x + player.w >= goal.x + 8) { 
+                        // NUEVO: Hitbox súper generoso para atraparte si saltas alto o te pasas de largo
+                        if (player.y + player.h <= goal.y + 150 || player.x >= goal.x) {
+                            goal.state = 'top';
+                        } else {
+                            goal.state = 'crash';
+                        }
+                        state.menuTimer = 0;
+                        winLevel();
+                    }
                 }
             }
             
@@ -1275,18 +1391,43 @@
             for(let i=texts.length-1; i>=0; i--) { texts[i].update(dt); if(texts[i].life<=0) texts.splice(i,1); }
             for(let i=meteors.length-1; i>=0; i--) { meteors[i].update(dt); if(meteors[i].life<=0) meteors.splice(i,1); }
 
-            if(state.current === GAME_STATES.PLAYING && player.x > goal.x) winLevel();
             let targetX = player.x - cw * 0.4; if(targetX < 0) targetX = 0; state.camX += (targetX - state.camX) * (1 - Math.pow(0.001, dt));
 
             if (state.current === GAME_STATES.ENDING) { 
                 let pCamX = state.menuTimer * 200; 
                 ctx.clearRect(0,0,cw,ch); 
-                drawParallax(pCamX); 
+                
+                let oldWorld = state.world;
+                state.world = 1;
+                drawParallax(pCamX);
+                
                 let floor = ch - 180;
-                ctx.fillStyle = WC[state.world] ? WC[state.world].gM : WC[1].gM;
+                let wC = WC[1];
+                
+                ctx.fillStyle = wC.gM;
                 ctx.fillRect(0, floor, cw, ch - floor);
-                ctx.fillStyle = WC[state.world] ? WC[state.world].gT : WC[1].gT;
-                ctx.fillRect(0, floor, cw, 12);
+
+                ctx.strokeStyle = wC.gB; ctx.lineWidth = 2; ctx.beginPath();
+                let stepY = 15;
+                let floorH = ch - floor;
+                let offsetX = -(pCamX % 30);
+                for(let by = stepY; by < floorH; by += stepY) {
+                    ctx.moveTo(0, floor + by); ctx.lineTo(cw, floor + by);
+                }
+                for(let by = 0; by < floorH; by += stepY) {
+                    let offset = (by % (stepY * 2) === 0) ? 0 : 15;
+                    for(let bx = offsetX + offset - 30; bx <= cw + 30; bx += 30) {
+                        ctx.moveTo(bx, floor + by); ctx.lineTo(bx, floor + by + stepY);
+                    }
+                }
+                ctx.stroke();
+
+                ctx.fillStyle = wC.gT; ctx.fillRect(0, floor, cw, 12);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(0, floor+12, cw, 4);
+                ctx.fillStyle = 'rgba(255,255,255,0.3)'; ctx.fillRect(0, floor, cw, 3);
+                
+                state.world = oldWorld;
+                
                 ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(0,0,cw,ch);
             } 
             else { ctx.clearRect(0,0,cw,ch); drawParallax(state.camX); weatherParticles.forEach(p => p.draw(ctx)); }
@@ -1302,7 +1443,10 @@
                     window.endDummyPlayer.setSize('big'); 
                     window.endDummyPlayer.hasTorch = true; 
                     window.endDummyPlayer.facing = 1;
+                    window.endDummyFireballTimer = 0;
+                    window.endDummyFireballs = [];
                 }
+                
                 window.endDummyPlayer.x = state.camX + cw/2 - 120; 
                 window.endDummyPlayer.y = floor - window.endDummyPlayer.h; 
                 window.endDummyPlayer.animTimer = state.menuTimer * 15;
@@ -1317,16 +1461,23 @@
                         new Enemy(0, floor, 'fly')
                     ];
                 }
+                
                 window.endDummyEnemies.forEach((e, i) => {
                     e.x = state.camX + cw/2 + 20 + (i * 70); 
                     e.y = e.type === 'fly' ? floor - 100 - e.h : floor - e.h;
-                    e.animTimer = state.menuTimer * 15; 
-                    e.vx = 200; 
+                    e.animTimer = state.menuTimer * 20; 
+                    e.vx = 250; 
                     e.draw(ctx);
                 });
+
+                if(window.endDummyFireballs) {
+                    window.endDummyFireballs.forEach(fb => {
+                        ctx.fillStyle = '#e67e22'; ctx.beginPath(); ctx.arc(fb.x+fb.w/2, fb.y+fb.h/2, 7, 0, Math.PI*2); ctx.fill();
+                        ctx.fillStyle = '#f1c40f'; ctx.beginPath(); ctx.arc(fb.x+fb.w/2, fb.y+fb.h/2, 4, 0, Math.PI*2); ctx.fill();
+                    });
+                }
             } else {
-                ctx.fillStyle='#bdc3c7'; ctx.fillRect(goal.x+TILE/2-4, goal.y, 8, goal.h); ctx.fillStyle='#f1c40f'; ctx.beginPath(); ctx.arc(goal.x+TILE/2, goal.y, 8, 0, Math.PI*2); ctx.fill();
-                ctx.fillStyle='#2ecc71'; ctx.beginPath(); ctx.moveTo(goal.x+TILE/2+4, goal.y+20); ctx.lineTo(goal.x+TILE/2+40, goal.y+35); ctx.lineTo(goal.x+TILE/2+4, goal.y+50); ctx.fill();
+                if(goal && goal.draw) goal.draw(ctx);
                 blocks.forEach(b => { if(b.x > viewL && b.x < viewR) b.draw(ctx); }); items.forEach(i => { if(i.x > viewL && i.x < viewR) i.draw(ctx); });
                 enemies.forEach(e => { if(e.x > viewL && e.x < viewR) e.draw(ctx); }); projectiles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); });
                 playerProjectiles.forEach(p => { if(p.x > viewL && p.x < viewR) p.draw(ctx); });
@@ -1375,10 +1526,22 @@
                 }
                 ctx.shadowBlur = 0;
             }
+            else if (state.current === GAME_STATES.WIN) {
+                ctx.textAlign = 'center'; ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+                let bounce = Math.sin(state.menuTimer * 4) * 10;
+                let fontSize = Math.max(40, Math.min(cw/8, 80));
+                ctx.font = `bold ${fontSize}px Impact`;
+                ctx.fillStyle = '#2ecc71'; 
+                ctx.fillText("¡NIVEL", cw/2, ch/3 + bounce);
+                ctx.fillStyle = '#fff';
+                ctx.fillText("COMPLETADO!", cw/2, ch/3 + fontSize + bounce);
+                ctx.shadowBlur = 0;
+                drawUI(); 
+            }
             else if(state.current === GAME_STATES.PLAYING || state.current === GAME_STATES.DEAD) drawUI();
-            else if (state.current === GAME_STATES.WIN) drawFullScreenUI(dt);
         }
         requestAnimationFrame(gameLoop);
     </script>
 </body>
 </html>
+
