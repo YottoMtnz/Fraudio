@@ -362,7 +362,7 @@
             die() { let fs=[F.B4,F.F4,F.D4,F.B3]; fs.forEach((f, i) => setTimeout(()=>this.playSFX(f, 'triangle', 0.3, 0.2), i*150)); }
         };
 
-        // === GESTOR DE AUDIO EXTERNO (.wav) ===
+        // === GESTOR DE AUDIO EXTERNO (.mp3) ===
         let externalAudioInitialized = false;
 
         const ExternalAudio = {
@@ -378,21 +378,21 @@
                 
                 const load = (src) => { let a = new Audio(src); a.load(); return a; };
 
-                this.tracks.menu = load('pantalla_inicio.wav');
+                this.tracks.menu = load('pantalla_inicio.mp3');
                 this.tracks.menu.loop = true;
-                this.tracks.ending = load('pantalla_final.wav');
+                this.tracks.ending = load('pantalla_final.mp3');
                 this.tracks.ending.loop = true;
-                this.tracks.satellite = load('modo_satelite.wav');
+                this.tracks.satellite = load('modo_satelite.mp3');
                 this.tracks.satellite.loop = true;
-                this.tracks.alarm30 = load('apurate_30seg.wav');
-                this.tracks.fall = load('caida_pozo.wav');
-                this.tracks.gameOver = load('game_over.wav');
-                this.tracks.win = load('llegada_bandera.wav');
+                this.tracks.alarm30 = load('apurate_30seg.mp3');
+                this.tracks.fall = load('caida_pozo.mp3');
+                this.tracks.gameOver = load('game_over.mp3');
+                this.tracks.win = load('llegada_bandera.mp3');
 
                 for(let i=1; i<=8; i++) {
-                    this.tracks[`level_${i}`] = load(`nivel_${i}.wav`);
+                    this.tracks[`level_${i}`] = load(`nivel_${i}.mp3`);
                     this.tracks[`level_${i}`].loop = true;
-                    this.tracks[`level_${i}_hurry`] = load(`nivel_${i}_apurado_30seg.wav`);
+                    this.tracks[`level_${i}_hurry`] = load(`nivel_${i}_apurado_30seg.mp3`);
                     this.tracks[`level_${i}_hurry`].loop = true;
                 }
                 
