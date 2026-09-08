@@ -322,12 +322,6 @@
         function tryInitGame() { 
             AudioEngine.init(); 
             ExternalAudio.init();
-            
-            // Forzar el inicio si la música actual se quedó pausada esperando interacción
-            if (ExternalAudio.currentMusic && ExternalAudio.currentMusic.paused) {
-                ExternalAudio.currentMusic.play().catch(e => {});
-            }
-
             if (state.current === GAME_STATES.MENU) return; 
             if(state.current === GAME_STATES.GAMEOVER || (state.current === GAME_STATES.ENDING && state.menuTimer > 6)) { resetGame('menu'); }
         }
@@ -368,7 +362,7 @@
             die() { let fs=[F.B4,F.F4,F.D4,F.B3]; fs.forEach((f, i) => setTimeout(()=>this.playSFX(f, 'triangle', 0.3, 0.2), i*150)); }
         };
 
-        // === GESTOR DE AUDIO EXTERNO (.mp3) ===
+        // === GESTOR DE AUDIO EXTERNO (.mp3) MEJORADO PARA WEB ===
         let externalAudioInitialized = false;
 
         const ExternalAudio = {
@@ -384,13 +378,9 @@
                 
                 const load = (src) => { 
                     let a = new Audio(src); 
-                    a.preload = 'auto'; // Mejora la carga previa en la web
-                    // Forzar reproducción automáticamente cuando el audio haya cargado suficiente buffer de la web
-                    a.addEventListener('canplay', () => {
-                        if (ExternalAudio.currentMusic === a && a.paused) {
-                            a.play().catch(e => {});
-                        }
-                    });
+                    a.preload = 'auto'; // Fuerza precarga
+                    a.style.display = 'none'; // Evita problemas visuales
+                    document.body.appendChild(a); // Lo agrega al DOM para evitar la pérdida por Garbage Collection
                     return a; 
                 };
 
@@ -413,6 +403,21 @@
                 }
                 
                 this.updateVolumes();
+
+                // Truco de desbloqueo web (Mute, Play rápido y Pause)
+                for(let key in this.tracks) {
+                    let track = this.tracks[key];
+                    track.muted = true;
+                    let p = track.play();
+                    if(p !== undefined) {
+                        track.pause();
+                        p.then(() => {
+                            track.currentTime = 0;
+                            track.muted = false;
+                        }).catch(e => { track.muted = false; });
+                    }
+                }
+
                 externalAudioInitialized = true;
             },
             updateVolumes() {
@@ -425,29 +430,33 @@
                 }
             },
             playMusic(trackName) {
-                if (this.currentMusic === this.tracks[trackName]) {
-                    if (this.currentMusic && this.currentMusic.paused) {
-                        this.currentMusic.play().catch(e => {});
-                    }
-                    return;
-                }
+                if (this.currentMusic === this.tracks[trackName]) return;
                 this.stopMusic();
                 if (this.tracks[trackName]) {
                     this.currentMusic = this.tracks[trackName];
-                    this.currentMusic.play().catch(e => {}); // Previene errores si el navegador bloquea autoplay
+                    try {
+                        this.currentMusic.currentTime = 0;
+                        let p = this.currentMusic.play();
+                        if(p !== undefined) p.catch(e => {}); 
+                    } catch(e) {}
                 }
             },
             stopMusic() {
                 if (this.currentMusic) {
                     this.currentMusic.pause();
-                    this.currentMusic.currentTime = 0;
+                    // Importante: No resetear currentTime aquí previene errores de "The play() request was interrupted by a call to pause()"
                     this.currentMusic = null;
                 }
             },
             playSFX(trackName) {
                 if (this.tracks[trackName]) {
-                    this.tracks[trackName].currentTime = 0;
-                    this.tracks[trackName].play().catch(e => {});
+                    try {
+                        // Pausar primero evita que el navegador se ahogue de estados intentando cargar de nuevo
+                        this.tracks[trackName].pause(); 
+                        this.tracks[trackName].currentTime = 0;
+                        let p = this.tracks[trackName].play();
+                        if(p !== undefined) p.catch(e => {});
+                    } catch(e) {}
                 }
             }
         };
@@ -490,7 +499,7 @@
                         ExternalAudio.tracks.alarm30.onended = null;
                         if (!ExternalAudio.tracks.alarm30.paused) {
                             ExternalAudio.tracks.alarm30.pause();
-                            ExternalAudio.tracks.alarm30.currentTime = 0;
+                            try{ ExternalAudio.tracks.alarm30.currentTime = 0; }catch(e){}
                         }
                         ExternalAudio.playMusic(`level_${state.world}`);
                     } else if (!ExternalAudio.isHurried && ExternalAudio.currentMusic !== ExternalAudio.tracks[`level_${state.world}`]) {
@@ -1097,7 +1106,7 @@
                 ExternalAudio.stopMusic();
                 if(ExternalAudio.tracks.alarm30 && !ExternalAudio.tracks.alarm30.paused) {
                     ExternalAudio.tracks.alarm30.pause();
-                    ExternalAudio.tracks.alarm30.currentTime = 0;
+                    try { ExternalAudio.tracks.alarm30.currentTime = 0; } catch(e){}
                 }
             }
 
@@ -1163,7 +1172,7 @@
                 if(ExternalAudio.tracks.alarm30) {
                     ExternalAudio.tracks.alarm30.onended = null;
                     ExternalAudio.tracks.alarm30.pause();
-                    ExternalAudio.tracks.alarm30.currentTime = 0;
+                    try { ExternalAudio.tracks.alarm30.currentTime = 0; } catch(e){}
                 }
             }
 
@@ -1245,7 +1254,7 @@
                 window.menuDummyEnemies.forEach((e, i) => { e.x = cw/2 - 20 - (i * 55); e.y = e.type === 'fly' ? floor - 90 - e.h : floor - e.h; e.animTimer = state.menuTimer * 15; e.vx = 200; e.draw(ctx); });
 
                 let titleY = Math.max(80, ch * 0.25);
-                draw3DText(ctx, "FRAUDIO 3.1", cw/2, titleY + bounce, Math.min(cw/4, 20), '#E60012', '#7A0009', '#fff', 10);
+                draw3DText(ctx, "FRAUDIO 3.2", cw/2, titleY + bounce, Math.min(cw/4, 20), '#E60012', '#7A0009', '#fff', 10);
 
                 let btnW = Math.min(cw * 0.85, 380), btnH = 65, startY = titleY + 70, gap = 80, btnX = cw/2 - btnW/2;
                 let btnData = [ { text: "MODO RELAJADO (FÁCIL)", bg: '#4cd137', stroke: '#44bd32' }, { text: "EN ESTE VIVES :) (NORMAL)", bg: '#fbc531', stroke: '#e1b12c' }, { text: "EN ESTE NO VIVES :( (DIFÍCIL)", bg: '#e84118', stroke: '#c23616' } ];
@@ -1396,5 +1405,3 @@
     </script>
 </body>
 </html>
-
-
