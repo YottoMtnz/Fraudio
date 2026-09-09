@@ -50,7 +50,7 @@
         window.addEventListener('resize', resize); 
 
         const TILE = 45; const LEVEL_LENGTH = 300; 
-        const PHYS = { GRAVITY: 2400, MAX_FALL: 950, ACCEL: 3000, FRICTION: 0.00001, MAX_SPEED: 250, MAX_SPEED_SAT: 350, JUMP_FORCE: -850, BOUNCE_FORCE: -600 };
+        const PHYS = { GRAVITY: 2400, MAX_FALL: 950, ACCEL: 3000, FRICTION: 0.00001, MAX_SPEED: 200, MAX_SPEED_SAT: 300, JUMP_FORCE: -800, BOUNCE_FORCE: -550 };
         const GAME_STATES = { MENU: 0, PLAYING: 1, DEAD: 2, WIN: 3, GAMEOVER: 4, ENDING: 5 };
         
         const LEVEL_NAMES = [ 
@@ -1163,7 +1163,7 @@
             else if (reason === 'death') {} 
             else if (reason === 'next') { state.world++; keepState = true; } 
             
-            state.time = 100; 
+            state.time = 120; 
             
             if (externalAudioInitialized) {
                 ExternalAudio.isHurried = false;
@@ -1253,7 +1253,7 @@
                 window.menuDummyEnemies.forEach((e, i) => { e.x = cw/2 - 20 - (i * 55); e.y = e.type === 'fly' ? floor - 90 - e.h : floor - e.h; e.animTimer = state.menuTimer * 15; e.vx = 200; e.draw(ctx); });
 
                 let titleY = Math.max(80, ch * 0.25);
-                draw3DText(ctx, "FRAUDIO 3.3", cw/2, titleY + bounce, Math.min(cw/4, 20), '#E60012', '#7A0009', '#fff', 10);
+                draw3DText(ctx, "FRAUDIO 3.4", cw/2, titleY + bounce, Math.min(cw/4, 20), '#E60012', '#7A0009', '#fff', 10);
 
                 let btnW = Math.min(cw * 0.85, 380), btnH = 65, startY = titleY + 70, gap = 80, btnX = cw/2 - btnW/2;
                 
