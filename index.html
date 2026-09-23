@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#090f1f">
+  <meta name="author" content="Fraudy Martinez Madruga">
+  <meta name="copyright" content="© 2026 Fraudy Martinez Madruga. Todos los derechos reservados.">
+  <meta name="description" content="Fraudio 3.5: juego de plataformas 2D de acción creado por Fraudy Martinez Madruga. Juega online o descarga la versión para Windows.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Fraudio 3.5">
+  <meta property="og:description" content="Ocho mundos, tres dificultades y plataformas 2D de acción. Juega online o descarga Fraudio.">
+  <meta property="og:image" content="https://yottomtnz.github.io/Fraudio/assets/images/fraudio.jpg">
+  <meta property="og:url" content="https://yottomtnz.github.io/Fraudio/">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>Fraudio 3.5 — Sitio oficial</title>
+  <link rel="icon" href="assets/images/fraudio.jpg">
+  <style>
+    :root{
+      color-scheme:dark;
+      --bg:#070b14;--bg2:#0c1326;--card:rgba(18,28,51,.72);--card2:#101a30;
+      --text:#f5f7ff;--muted:#aeb8d2;--line:rgba(255,255,255,.10);
+      --cyan:#51e5ff;--blue:#4f7cff;--pink:#ff5db1;--gold:#ffd166;--green:#6ee7a8;
+      --shadow:0 24px 70px rgba(0,0,0,.38);--radius:24px;
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:
+      radial-gradient(circle at 15% 8%,rgba(79,124,255,.18),transparent 30rem),
+      radial-gradient(circle at 88% 18%,rgba(255,93,177,.13),transparent 28rem),
+      linear-gradient(180deg,#080d19 0%,#060912 55%,#070b14 100%);color:var(--text);line-height:1.55}
+    a{color:inherit;text-decoration:none}
+    img{max-width:100%;display:block}
+    button{font:inherit}
+    .wrap{width:min(1180px,calc(100% - 32px));margin:auto}
+    .nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(18px);background:rgba(7,11,20,.76);border-bottom:1px solid var(--line)}
+    .navin{min-height:72px;display:flex;align-items:center;gap:22px}
+    .brand{font-weight:1000;letter-spacing:.08em;font-size:1.22rem;margin-right:auto}
+    .brand span{background:linear-gradient(90deg,var(--cyan),var(--blue),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+    .navlinks{display:flex;gap:18px;color:var(--muted);font-size:.93rem}
+    .navlinks a:hover{color:#fff}
+    .lang{display:flex;padding:4px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.04)}
+    .lang button{border:0;color:var(--muted);background:transparent;border-radius:999px;padding:8px 11px;cursor:pointer;font-weight:800}
+    .lang button.active{background:#fff;color:#0a1020}
+    .hero{padding:76px 0 54px;display:grid;grid-template-columns:1.02fr .98fr;gap:50px;align-items:center}
+    .eyebrow{display:inline-flex;gap:9px;align-items:center;padding:7px 12px;border:1px solid rgba(81,229,255,.25);border-radius:999px;background:rgba(81,229,255,.07);color:#bcf5ff;font-weight:800;font-size:.84rem}
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--cyan);box-shadow:0 0 16px var(--cyan)}
+    h1{font-size:clamp(3.4rem,9vw,7.2rem);line-height:.88;margin:22px 0 20px;letter-spacing:-.065em}
+    h1 span{display:block;background:linear-gradient(110deg,#fff 5%,#9ff1ff 38%,#809bff 66%,#ff91cc 95%);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .lead{font-size:clamp(1.06rem,2vw,1.28rem);color:var(--muted);max-width:680px}
+    .cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
+    .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:14px 19px;border-radius:14px;border:1px solid var(--line);font-weight:900;transition:.2s transform,.2s border-color,.2s background;min-width:168px}
+    .btn:hover{transform:translateY(-2px);border-color:rgba(255,255,255,.25)}
+    .primary{background:linear-gradient(105deg,var(--blue),#6558ff 60%,#934dff);box-shadow:0 12px 35px rgba(79,124,255,.25)}
+    .secondary{background:rgba(255,255,255,.055)}
+    .hero-meta{display:flex;flex-wrap:wrap;gap:17px;margin-top:23px;color:#cbd3e7;font-size:.9rem}
+    .hero-card{position:relative}
+    .cover{position:relative;border-radius:30px;overflow:hidden;border:1px solid rgba(255,255,255,.14);box-shadow:var(--shadow);transform:perspective(1200px) rotateY(-4deg) rotateX(2deg)}
+    .cover::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 60%,rgba(4,7,15,.3));pointer-events:none}
+    .cover img{width:100%;aspect-ratio:16/9;object-fit:cover}
+    .float-chip{position:absolute;right:-14px;bottom:-18px;background:rgba(13,21,39,.94);backdrop-filter:blur(15px);border:1px solid var(--line);border-radius:17px;padding:12px 16px;box-shadow:var(--shadow);font-weight:900}
+    .float-chip small{display:block;color:var(--muted);font-weight:650}
+    section{padding:64px 0}
+    .section-head{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:26px}
+    .section-head h2{font-size:clamp(2rem,4vw,3.3rem);letter-spacing:-.045em;margin:0}
+    .section-head p{color:var(--muted);max-width:600px;margin:0}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+    .feature{border:1px solid var(--line);border-radius:var(--radius);padding:24px;background:linear-gradient(145deg,rgba(21,33,60,.78),rgba(12,19,35,.58));min-height:190px}
+    .icon{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.07);font-size:1.45rem;margin-bottom:22px}
+    .feature h3{margin:0 0 8px;font-size:1.14rem}.feature p{margin:0;color:var(--muted)}
+    .worlds{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+    .world{padding:18px;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.035)}
+    .world b{display:block;margin-top:6px}.world span{color:var(--muted);font-size:.84rem}
+    .media-box{border:1px solid var(--line);border-radius:28px;padding:12px;background:rgba(255,255,255,.035);box-shadow:var(--shadow)}
+    video{width:100%;border-radius:20px;background:#000;display:block}
+    .gallery{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+    .shot{border:1px solid var(--line);border-radius:20px;overflow:hidden;background:var(--card);cursor:zoom-in;position:relative}
+    .shot img{width:100%;aspect-ratio:16/9;object-fit:cover;transition:transform .25s}
+    .shot:hover img{transform:scale(1.018)}
+    .shot figcaption{padding:12px 14px;color:#d8deee;font-size:.91rem}
+    .controls{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    .panel{border:1px solid var(--line);border-radius:var(--radius);padding:24px;background:var(--card)}
+    .panel h3{margin-top:0}.keys{display:grid;gap:11px}.keyrow{display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--line);padding-bottom:10px;color:var(--muted)}
+    kbd{font-family:inherit;color:#fff;background:#151e34;border:1px solid rgba(255,255,255,.14);border-bottom-width:3px;border-radius:8px;padding:3px 8px;font-weight:850}
+    .requirements{display:grid;grid-template-columns:1fr 1fr;gap:16px}.req ul{padding-left:19px;color:var(--muted);margin-bottom:0}.req strong{color:#fff}
+    .author{display:grid;grid-template-columns:1fr auto;gap:28px;align-items:center;border:1px solid rgba(81,229,255,.17);border-radius:30px;padding:32px;background:linear-gradient(125deg,rgba(79,124,255,.13),rgba(255,93,177,.08))}
+    .author h2{margin:0 0 8px;font-size:clamp(1.8rem,4vw,3rem)}.author p{margin:0;color:var(--muted);max-width:760px}
+    .author-badge{padding:15px 18px;border:1px solid var(--line);border-radius:17px;background:rgba(0,0,0,.2);text-align:center;white-space:nowrap}.author-badge b{display:block}
+    footer{padding:34px 0 48px;color:var(--muted);font-size:.9rem}.foot{display:flex;gap:16px;justify-content:space-between;border-top:1px solid var(--line);padding-top:24px}
+    .lightbox{position:fixed;inset:0;z-index:100;background:rgba(1,4,10,.93);display:none;align-items:center;justify-content:center;padding:24px;cursor:zoom-out}.lightbox.open{display:flex}.lightbox img{max-width:min(1500px,96vw);max-height:90vh;border-radius:16px;box-shadow:0 30px 90px #000}
+    @media(max-width:900px){.hero{grid-template-columns:1fr;padding-top:48px}.hero-card{max-width:720px}.grid{grid-template-columns:1fr 1fr}.worlds{grid-template-columns:1fr 1fr}.navlinks{display:none}.controls,.requirements{grid-template-columns:1fr}.author{grid-template-columns:1fr}.author-badge{justify-self:start}}
+    @media(max-width:620px){.wrap{width:min(100% - 22px,1180px)}.grid,.gallery{grid-template-columns:1fr}.hero{gap:28px}.float-chip{right:8px;bottom:-18px}.section-head{align-items:start;flex-direction:column}.cta .btn{width:100%}.worlds{grid-template-columns:1fr 1fr}.foot{flex-direction:column}.navin{gap:10px}.brand{font-size:1.08rem}}
+    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
+  </style>
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"VideoGame","name":"Fraudio","version":"3.5","author":{"@type":"Person","name":"Fraudy Martinez Madruga"},"url":"https://yottomtnz.github.io/Fraudio/","image":"https://yottomtnz.github.io/Fraudio/assets/images/fraudio.jpg","applicationCategory":"Game","operatingSystem":"Web browser, Windows"}
+  </script>
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap navin">
+      <a class="brand" href="#top" aria-label="Fraudio"><span>FRAUDIO</span></a>
+      <nav class="navlinks" aria-label="Principal">
+        <a href="#features" data-i18n="navFeatures">Características</a>
+        <a href="#gallery" data-i18n="navGallery">Capturas</a>
+        <a href="#trailer">Trailer</a>
+        <a href="#controls" data-i18n="navControls">Controles</a>
+      </nav>
+      <div class="lang" aria-label="Language / Idioma">
+        <button type="button" id="lang-es">ES</button><button type="button" id="lang-en">EN</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <div class="wrap hero">
+      <div>
+        <div class="eyebrow"><span class="dot"></span><span data-i18n="eyebrow">Versión actual · 3.5</span></div>
+        <h1><span>FRAUDIO</span></h1>
+        <p class="lead" data-i18n="heroLead">Un plataformas 2D de acción con ocho mundos, tres niveles de dificultad, power-ups, música propia por escenario y controles pensados para escritorio y móvil.</p>
+        <div class="cta">
+          <a class="btn primary" href="assets/Fraudio.html" data-i18n="play">🎮 Jugar online</a>
+          <a class="btn secondary" href="https://drive.google.com/file/d/1jdvcG4zopbD2GGHgoNobpl4mSlhO-CUM/view?usp=drive_link" target="_blank" rel="noopener noreferrer" data-i18n="download">⬇️ Descargar para Windows</a>
+        </div>
+        <div class="hero-meta">
+          <span data-i18n="meta1">🌍 8 mundos</span><span data-i18n="meta2">⚡ 3 dificultades</span><span data-i18n="meta3">📱 Compatible con táctil</span><span>🎵 HTML5 Audio</span>
+        </div>
+      </div>
+      <div class="hero-card">
+        <div class="cover"><img src="assets/images/fraudio.jpg" alt="Fraudio cover art" width="1280" height="720"></div>
+        <div class="float-chip"><span>Fraudio 3.5</span><small data-i18n="createdBy">Creado por Fraudy Martinez Madruga</small></div>
+      </div>
+    </div>
+
+    <section id="features">
+      <div class="wrap">
+        <div class="section-head"><div><h2 data-i18n="featuresTitle">Lo que te espera</h2></div><p data-i18n="featuresIntro">Una experiencia directa y rápida: entrar, elegir dificultad y abrirse paso hasta la bandera antes de que se termine el tiempo.</p></div>
+        <div class="grid">
+          <article class="feature"><div class="icon">🌎</div><h3 data-i18n="f1t">Ocho mundos</h3><p data-i18n="f1d">Praderas, desierto, cumbres, volcán, playa, bosque, cielo y una zona abisal final con identidad visual propia.</p></article>
+          <article class="feature"><div class="icon">🎚️</div><h3 data-i18n="f2t">Tres dificultades</h3><p data-i18n="f2d">Relajado, Normal y Difícil cambian la presión y la cantidad de enemigos para adaptar el reto.</p></article>
+          <article class="feature"><div class="icon">🔥</div><h3 data-i18n="f3t">Power-ups y combate</h3><p data-i18n="f3d">Consigue mejoras, aprovecha habilidades temporales y usa bolas de fuego para abrirte camino.</p></article>
+          <article class="feature"><div class="icon">🎵</div><h3 data-i18n="f4t">Música por escenario</h3><p data-i18n="f4d">Cada mundo tiene su propia pista y el ritmo aumenta cuando entrás en los últimos 30 segundos.</p></article>
+          <article class="feature"><div class="icon">✨</div><h3 data-i18n="f5t">Escenarios vivos</h3><p data-i18n="f5d">Parallax, partículas, animaciones y efectos ambientales acompañan el avance por cada zona.</p></article>
+          <article class="feature"><div class="icon">⌨️</div><h3 data-i18n="f6t">PC y móvil</h3><p data-i18n="f6d">Jugá con teclado en escritorio o con botones táctiles integrados desde el navegador del teléfono.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head"><h2 data-i18n="worldsTitle">Los 8 mundos</h2><p data-i18n="worldsIntro">Cada etapa cambia el ambiente, la paleta, los efectos y la presión del recorrido.</p></div>
+        <div class="worlds">
+          <div class="world"><span>01</span><b data-i18n="w1">Praderas Verdes</b></div><div class="world"><span>02</span><b data-i18n="w2">Desierto Rojo</b></div>
+          <div class="world"><span>03</span><b data-i18n="w3">Cumbres Nevadas</b></div><div class="world"><span>04</span><b data-i18n="w4">Volcán Activo</b></div>
+          <div class="world"><span>05</span><b data-i18n="w5">Playa Cristal</b></div><div class="world"><span>06</span><b data-i18n="w6">Bosque Oscuro</b></div>
+          <div class="world"><span>07</span><b data-i18n="w7">Cielo Azul</b></div><div class="world"><span>08</span><b data-i18n="w8">Zona Abisal</b></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="trailer">
+      <div class="wrap">
+        <div class="section-head"><h2>Trailer</h2><p data-i18n="trailerIntro">Un vistazo rápido al ritmo, los mundos y la presentación de Fraudio.</p></div>
+        <div class="media-box"><video controls preload="metadata" poster="assets/images/fraudio.jpg"><source src="assets/trailer/Trailer_Fraudio_1080p60.mp4" type="video/mp4"><span data-i18n="videoFallback">Tu navegador no puede reproducir este video.</span></video></div>
+      </div>
+    </section>
+
+    <section id="gallery">
+      <div class="wrap">
+        <div class="section-head"><h2 data-i18n="galleryTitle">Capturas reales</h2><p data-i18n="galleryIntro">Imágenes tomadas de la versión actual del juego.</p></div>
+        <div class="gallery">
+          <figure class="shot"><img src="assets/images/screenshots/01_menu.png" alt="Fraudio menu" loading="lazy"><figcaption data-i18n="cap1">Menú principal y selector de dificultad</figcaption></figure>
+          <figure class="shot"><img src="assets/images/screenshots/02_praderas_verdes.png" alt="Praderas Verdes" loading="lazy"><figcaption data-i18n="cap2">Mundo 1 · Praderas Verdes</figcaption></figure>
+          <figure class="shot"><img src="assets/images/screenshots/03_desierto_rojo.png" alt="Desierto Rojo" loading="lazy"><figcaption data-i18n="cap3">Mundo 2 · Desierto Rojo</figcaption></figure>
+          <figure class="shot"><img src="assets/images/screenshots/04_volcan_activo.png" alt="Volcán Activo" loading="lazy"><figcaption data-i18n="cap4">Mundo 4 · Volcán Activo</figcaption></figure>
+          <figure class="shot"><img src="assets/images/screenshots/05_bosque_oscuro.png" alt="Bosque Oscuro" loading="lazy"><figcaption data-i18n="cap5">Mundo 6 · Bosque Oscuro</figcaption></figure>
+          <figure class="shot"><img src="assets/images/screenshots/06_zona_abisal_final.png" alt="Zona Abisal" loading="lazy"><figcaption data-i18n="cap6">Mundo 8 · Zona Abisal</figcaption></figure>
+        </div>
+      </div>
+    </section>
+
+    <section id="controls">
+      <div class="wrap">
+        <div class="section-head"><h2 data-i18n="controlsTitle">Controles</h2><p data-i18n="controlsIntro">La versión web se adapta automáticamente al dispositivo.</p></div>
+        <div class="controls">
+          <div class="panel"><h3 data-i18n="desktop">Escritorio</h3><div class="keys">
+            <div class="keyrow"><span data-i18n="move">Moverse</span><span><kbd>←</kbd> <kbd>→</kbd> / <kbd>A</kbd> <kbd>D</kbd></span></div>
+            <div class="keyrow"><span data-i18n="jump">Saltar</span><span><kbd>↑</kbd> <kbd>W</kbd> <kbd>Espacio</kbd></span></div>
+            <div class="keyrow"><span data-i18n="shoot">Disparar con la mejora correspondiente</span><span><kbd>Shift</kbd> / <kbd>X</kbd></span></div>
+          </div></div>
+          <div class="panel"><h3 data-i18n="mobile">Móvil / táctil</h3><p data-i18n="mobileText">Usá los botones virtuales de movimiento, salto y acción que aparecen dentro del juego. No hace falta instalar controles adicionales para la versión online.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <div class="section-head"><h2 data-i18n="reqTitle">Versión descargable</h2><p data-i18n="reqIntro">Requisitos orientativos suministrados para la edición de Windows.</p></div>
+        <div class="requirements">
+          <div class="panel req"><h3 data-i18n="minimum">Mínimo</h3><ul>
+            <li><strong>SO:</strong> Windows 7 SP1 / 10 / 11</li><li><strong>CPU:</strong> Intel Core i3-4130 / AMD FX-6300</li><li><strong>RAM:</strong> 4 GB</li><li><strong>GPU:</strong> Intel HD 4600 / Radeon R5 o equivalente DX11</li><li><strong data-i18n="storage">Almacenamiento:</strong> 700 MB</li><li data-i18n="minTarget">Objetivo orientativo: 1280×720 a 30 FPS.</li>
+          </ul></div>
+          <div class="panel req"><h3 data-i18n="recommended">Recomendado</h3><ul>
+            <li><strong>SO:</strong> Windows 10 / 11 64-bit</li><li><strong>CPU:</strong> Intel Core i5-6500 / Ryzen 3 1200</li><li><strong>RAM:</strong> 8 GB</li><li><strong>GPU:</strong> GTX 750 Ti / RX 550 o superior</li><li><strong data-i18n="storage2">Almacenamiento:</strong> 1 GB</li><li data-i18n="recTarget">Objetivo orientativo: 1920×1080 a 60 FPS.</li>
+          </ul></div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap author">
+        <div><h2 data-i18n="authorTitle">Creado por Fraudy Martinez Madruga</h2><p data-i18n="authorText">Fraudio es un proyecto original de plataformas 2D. Diseño, concepto y autoría acreditados a Fraudy Martinez Madruga. © 2026. Todos los derechos reservados.</p></div>
+        <div class="author-badge"><b>© 2026</b><span>Fraudy Martinez Madruga</span></div>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="wrap foot"><span>Fraudio 3.5</span><span data-i18n="footer">Sitio oficial · Español / English</span></div></footer>
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot"><img alt=""></div>
+  <script>
+    const translations={
+      es:{navFeatures:'Características',navGallery:'Capturas',navControls:'Controles',eyebrow:'Versión actual · 3.5',heroLead:'Un plataformas 2D de acción con ocho mundos, tres niveles de dificultad, power-ups, música propia por escenario y controles pensados para escritorio y móvil.',play:'🎮 Jugar online',download:'⬇️ Descargar para Windows',meta1:'🌍 8 mundos',meta2:'⚡ 3 dificultades',meta3:'📱 Compatible con táctil',createdBy:'Creado por Fraudy Martinez Madruga',featuresTitle:'Lo que te espera',featuresIntro:'Una experiencia directa y rápida: entrar, elegir dificultad y abrirse paso hasta la bandera antes de que se termine el tiempo.',f1t:'Ocho mundos',f1d:'Praderas, desierto, cumbres, volcán, playa, bosque, cielo y una zona abisal final con identidad visual propia.',f2t:'Tres dificultades',f2d:'Relajado, Normal y Difícil cambian la presión y la cantidad de enemigos para adaptar el reto.',f3t:'Power-ups y combate',f3d:'Consigue mejoras, aprovecha habilidades temporales y usa bolas de fuego para abrirte camino.',f4t:'Música por escenario',f4d:'Cada mundo tiene su propia pista y el ritmo aumenta cuando entrás en los últimos 30 segundos.',f5t:'Escenarios vivos',f5d:'Parallax, partículas, animaciones y efectos ambientales acompañan el avance por cada zona.',f6t:'PC y móvil',f6d:'Jugá con teclado en escritorio o con botones táctiles integrados desde el navegador del teléfono.',worldsTitle:'Los 8 mundos',worldsIntro:'Cada etapa cambia el ambiente, la paleta, los efectos y la presión del recorrido.',w1:'Praderas Verdes',w2:'Desierto Rojo',w3:'Cumbres Nevadas',w4:'Volcán Activo',w5:'Playa Cristal',w6:'Bosque Oscuro',w7:'Cielo Azul',w8:'Zona Abisal',trailerIntro:'Un vistazo rápido al ritmo, los mundos y la presentación de Fraudio.',videoFallback:'Tu navegador no puede reproducir este video.',galleryTitle:'Capturas reales',galleryIntro:'Imágenes tomadas de la versión actual del juego.',cap1:'Menú principal y selector de dificultad',cap2:'Mundo 1 · Praderas Verdes',cap3:'Mundo 2 · Desierto Rojo',cap4:'Mundo 4 · Volcán Activo',cap5:'Mundo 6 · Bosque Oscuro',cap6:'Mundo 8 · Zona Abisal',controlsTitle:'Controles',controlsIntro:'La versión web se adapta automáticamente al dispositivo.',desktop:'Escritorio',move:'Moverse',jump:'Saltar',shoot:'Disparar con la mejora correspondiente',mobile:'Móvil / táctil',mobileText:'Usá los botones virtuales de movimiento, salto y acción que aparecen dentro del juego. No hace falta instalar controles adicionales para la versión online.',reqTitle:'Versión descargable',reqIntro:'Requisitos orientativos suministrados para la edición de Windows.',minimum:'Mínimo',recommended:'Recomendado',storage:'Almacenamiento:',storage2:'Almacenamiento:',minTarget:'Objetivo orientativo: 1280×720 a 30 FPS.',recTarget:'Objetivo orientativo: 1920×1080 a 60 FPS.',authorTitle:'Creado por Fraudy Martinez Madruga',authorText:'Fraudio es un proyecto original de plataformas 2D. Diseño, concepto y autoría acreditados a Fraudy Martinez Madruga. © 2026. Todos los derechos reservados.',footer:'Sitio oficial · Español / English'},
+      en:{navFeatures:'Features',navGallery:'Screenshots',navControls:'Controls',eyebrow:'Current version · 3.5',heroLead:'A 2D action platformer with eight worlds, three difficulty levels, power-ups, stage-specific music, and controls designed for desktop and mobile.',play:'🎮 Play online',download:'⬇️ Download for Windows',meta1:'🌍 8 worlds',meta2:'⚡ 3 difficulty levels',meta3:'📱 Touch friendly',createdBy:'Created by Fraudy Martinez Madruga',featuresTitle:'What awaits you',featuresIntro:'A fast, direct experience: jump in, choose a difficulty, and fight your way to the flag before time runs out.',f1t:'Eight worlds',f1d:'Meadows, desert, snowy peaks, volcano, beach, forest, sky, and a final abyssal zone, each with its own visual identity.',f2t:'Three difficulty levels',f2d:'Relaxed, Normal, and Hard adjust the pressure and enemy count to match the challenge you want.',f3t:'Power-ups and combat',f3d:'Collect upgrades, use temporary abilities, and fire projectiles to clear your path.',f4t:'Music for every stage',f4d:'Each world has its own track, and the pace intensifies during the final 30 seconds.',f5t:'Lively environments',f5d:'Parallax, particles, animation, and environmental effects accompany you through every zone.',f6t:'Desktop and mobile',f6d:'Play with a keyboard on desktop or use the built-in touch buttons in your phone browser.',worldsTitle:'The 8 worlds',worldsIntro:'Every stage changes the atmosphere, color palette, effects, and pressure of the run.',w1:'Green Meadows',w2:'Red Desert',w3:'Snowy Peaks',w4:'Active Volcano',w5:'Crystal Beach',w6:'Dark Forest',w7:'Blue Sky',w8:'Abyssal Zone',trailerIntro:'A quick look at Fraudio’s pace, worlds, and presentation.',videoFallback:'Your browser cannot play this video.',galleryTitle:'Real screenshots',galleryIntro:'Images captured from the current version of the game.',cap1:'Main menu and difficulty selector',cap2:'World 1 · Green Meadows',cap3:'World 2 · Red Desert',cap4:'World 4 · Active Volcano',cap5:'World 6 · Dark Forest',cap6:'World 8 · Abyssal Zone',controlsTitle:'Controls',controlsIntro:'The web version adapts automatically to your device.',desktop:'Desktop',move:'Move',jump:'Jump',shoot:'Shoot with the matching upgrade',mobile:'Mobile / touch',mobileText:'Use the virtual movement, jump, and action buttons displayed inside the game. The online version requires no extra controller installation.',reqTitle:'Downloadable version',reqIntro:'Guideline requirements supplied for the Windows edition.',minimum:'Minimum',recommended:'Recommended',storage:'Storage:',storage2:'Storage:',minTarget:'Guideline target: 1280×720 at 30 FPS.',recTarget:'Guideline target: 1920×1080 at 60 FPS.',authorTitle:'Created by Fraudy Martinez Madruga',authorText:'Fraudio is an original 2D platform game project. Design, concept, and authorship are credited to Fraudy Martinez Madruga. © 2026. All rights reserved.',footer:'Official site · Español / English'}
+    };
+    const buttons={es:document.getElementById('lang-es'),en:document.getElementById('lang-en')};
+    function setLang(lang){
+      const dict=translations[lang]||translations.es;document.documentElement.lang=lang;localStorage.setItem('fraudio-lang',lang);
+      document.querySelectorAll('[data-i18n]').forEach(el=>{const k=el.dataset.i18n;if(dict[k])el.textContent=dict[k]});
+      Object.entries(buttons).forEach(([k,b])=>{b.classList.toggle('active',k===lang);b.setAttribute('aria-pressed',k===lang?'true':'false')});
+      document.title=lang==='es'?'Fraudio 3.5 — Sitio oficial':'Fraudio 3.5 — Official site';
+    }
+    buttons.es.addEventListener('click',()=>setLang('es'));buttons.en.addEventListener('click',()=>setLang('en'));
+    const saved=localStorage.getItem('fraudio-lang'); const preferred=saved || ((navigator.language||'es').toLowerCase().startsWith('en')?'en':'es'); setLang(preferred);
+    const lb=document.getElementById('lightbox'),lbImg=lb.querySelector('img');
+    document.querySelectorAll('.shot img').forEach(img=>img.addEventListener('click',()=>{lbImg.src=img.src;lbImg.alt=img.alt;lb.classList.add('open')}));
+    lb.addEventListener('click',()=>{lb.classList.remove('open');lbImg.removeAttribute('src')});
+    document.addEventListener('keydown',e=>{if(e.key==='Escape')lb.classList.remove('open')});
+  </script>
+</body>
+</html>

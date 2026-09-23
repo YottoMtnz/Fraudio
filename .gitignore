@@ -1,0 +1,25 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.temp
+*.bak
+*.swp
+~$*
+
+# Local publishing / caches
+_fraudio_publish/
+.cache/
+.vscode/
+.idea/
+
+# Source media not required by the public build
+*.psd
+*.xcf
+*.aup3
+
+# Local publishing helpers (never upload)
+PUBLICAR_GITHUB*.bat
+LEEME_ANTES_DE_PUBLICAR.txt
+Fraudio_GitHub_Publicacion*.zip

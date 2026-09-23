@@ -1,0 +1,43 @@
+name: "🐞 Error / Bug"
+description: "Reportar un problema reproducible / Report a reproducible problem"
+title: "[BUG] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por ayudar a mejorar Fraudio. / Thanks for helping improve Fraudio.
+  - type: dropdown
+    id: version
+    attributes:
+      label: "Versión / Version"
+      options:
+        - "Web / Online"
+        - "Windows / Download"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problema / Problem"
+      description: "¿Qué ocurrió y qué esperabas que ocurriera? / What happened and what did you expect?"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Pasos / Steps"
+      description: "Pasos para reproducirlo / Steps to reproduce"
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: "Entorno / Environment"
+      description: "Navegador, Windows, dispositivo, etc. / Browser, Windows, device, etc."
+  - type: textarea
+    id: extra
+    attributes:
+      label: "Información adicional / Additional information"
+      description: "Capturas, video u otros datos útiles / Screenshots, video, or other useful details"
